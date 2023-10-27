@@ -45,6 +45,10 @@ b {
     display: none !important;
 }
 
+.pr-0 {
+    padding-right: 0px !important;
+}
+
 .bg-top {
     position: absolute;
     top: 0px;
@@ -436,4 +440,130 @@ textarea {
     color: var(--color-black);
     padding: 2px 15px;
     font-size: 18px;
+}
+
+/* Página Sobre */
+
+.bg-top.sobre {
+    height: 180px;
+}
+
+.title-sobre {
+    margin-bottom: 20px !important;
+    margin-top: 5px;
+    margin-right: 100px;
+}
+
+.sobre {
+    font-size: 14px;
+    color: var(--color-text);
+}
+
+.container-img-sobre {
+    position: absolute;
+    right: 0;
+    margin-top: -50px;
+    width: 90px;
+    height: 90px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: var(--color-white);
+    border-radius: 15px;
+    margin-right: 15px;
+    box-shadow: var(--box-shadow);
+}
+
+.normal-text {
+    font-size: 14px;
+    color: var(--color-text);
+}
+
+.normal-text b {
+    font-size: 14px;
+    color: var(--color-black);
+}
+
+.btn-full {
+    font-weight: bold;
+    position: fixed;
+    right: 0;
+    left: 0;
+    bottom: 10px;
+    width: calc(100% - 20px);
+    max-width: 800px;
+    margin: 0 auto;
+    border-radius: 20px;
+    padding: 15px 25px;
+    font-size: 18px;
+    box-shadow: var(--box-shadow) !important;
+    border: 1px solid var(--color-cp-secondary) !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-full.voltar {
+    justify-content: center;
+}
+
+/* Carrinho */
+
+.bg-top.pedido {
+    height: 180px;
+}
+
+.container-detalhes {
+    display: flex;
+}
+
+.carrinho .detalhes-produto {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.carrinho .infos-produto {
+    flex: 1;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.carrinho .infos-produto .name {
+    font-size: 16px;
+}
+
+.carrinho .infos-produto .price {
+    font-size: 14px;
+    color: var(--color-black);
+}
+
+.carrinho .infos-produto .name-opcional,
+.carrinho .infos-produto .price-opcional,
+.carrinho .infos-produto .obs-opcional {
+    font-size: 14px;
+    color: var(--color-text);
+    margin-left: 10px;
+}
+
+.carrinho .infos-produto .obs-opcional {
+    margin-right: 75px;
+}
+
+.detalhes-produto-edit {
+    font-size: 14px;
+    padding-left: 10px;
+    padding-right: 15px;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.carrinho .infos-produto .name-total {
+    font-size: 18px;
+    color: var(--color-black);
+}
+
+.carrinho .infos-produto .price-total {
+    font-size: 18px;
+    color: var(--color-cp-primary);
 }
