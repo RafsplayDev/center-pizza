@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Center Pizza</title>
+
+    <link rel="stylesheet" href="./css/bootstrap.min.css" />
+    <link rel="stylesheet" href="./css/fontawesome.css" />
+    <link rel="stylesheet" href="./css/animate.css" />
+    <link rel="stylesheet" href="./css/main.css" />
+
+</head>
+<body>
+
+    <div class="bg-top details"></div>
+
+    <header class="width-fix mt-3">
+
+        <div class="card">
+
+            <div class="d-flex">
+
+                <a href="./index.html" class="container-voltar">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <div class="infos text-center">
+                    <h1 class="mb-0"><b>Detalhes do produto</b></h1>
+                </div>
+
+            </div>
+
+
+        </div>
+
+    </header>
+
+    <section class="imagem width-fix mt-4">
+        <div class="container-imagem-produto" style="background-image: url('./img/bacon.png'); background-size: cover;">
+        </div>
+        <div class="card mb-2">
+            <div class="d-flex">
+                <div class="infos-produto">
+                    <p class="name mb-2"><b>Bacon</b></p>
+                    <p class="description mb-4">Mussarela, bacon, ovo e tomate</p>
+                    <p class="price"><b>R$ 39,90</b></p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="opcionais width-fix mt-5 pb-5">
+
+        <div class="container-group mb-5">
+            <span class="badge">Obrigatório</span>
+
+            <p class="title-categoria mb-0"><b>Deseja borda?</b></p>
+            <span class="sub-title-categoria">Escolha 1 opção</span>
+
+            <div class="card card-opcionais mt-2">
+                <div class="infos-produto-opcional">
+                    <p class="name mb-0"><b>Catupiry</b></p>
+                    <p class="price mb-0"><b>+ R$ 8,90</b></p>
+                </div>
+                <div class="checks">
+                    <label class="container-check">
+                        <input type="checkbox">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="card card-opcionais mt-2">
+                <div class="infos-produto-opcional">
+                    <p class="name mb-0"><b>Cheddar</b></p>
+                    <p class="price mb-0"><b>+ R$ 8,90</b></p>
+                </div>
+                <div class="checks">
+                    <label class="container-check">
+                        <input type="checkbox">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="container-group mb-5">
+            <p class="title-categoria mb-0"><b>Adicionais</b></p>
+            <span class="sub-title-categoria">Escolha 2 opções</span>
+
+            <div class="card card-opcionais mt-2">
+                <div class="infos-produto-opcional">
+                    <p class="name mb-0"><b>Bacon</b></p>
+                    <p class="price mb-0"><b>+ R$ 8,90</b></p>
+                </div>
+                <div class="checks">
+                    <label class="container-check">
+                        <input type="checkbox">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="card card-opcionais mt-2">
+                <div class="infos-produto-opcional">
+                    <p class="name mb-0"><b>Cebola</b></p>
+                    <p class="price mb-0"><b>+ R$ 8,90</b></p>
+                </div>
+                <div class="checks">
+                    <label class="container-check">
+                        <input type="checkbox">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="container-group mb-5">
+            <p class="title-categoria mb-0"><b>Observações</b></p>
+            <span class="sub-title-categoria">Informe alguma observação abaixo</span>
+
+            <textarea rows="5" class="form-control mt-2"></textarea>
+
+        </div>
+
+    </section>
+
+    <section class="menu-bottom details" id="menu-bottom">
+        <div class="add-carrinho">
+            <span class="btn-menos">
+                <i class="fas fa-minus"></i>
+            </span>
+            <span class="add-numero-itens">
+                2
+            </span>
+            <span class="btn-mais">
+                <i class="fas fa-plus"></i>
+            </span>
+        </div>
+        <a href="" class="btn btn-red btn-sm">
+            Adicionar <span>R$ 49,90</span>
+        </a>
+    </section>
+
+    <section class="menu-bottom disabled hidden" id="menu-bottom-closed">
+        <p class="mb-0"><b>Loja fechada no momento</b></p>
+    </section>
+
+
+    <script type="text/javascript" src="./js/bootstrap.bundle.min.js"></script>
+    <script type="text/javascript" src="./js/item.js"></script>
+
+</body>
+</html>
