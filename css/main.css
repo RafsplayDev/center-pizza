@@ -567,3 +567,46 @@ textarea {
     font-size: 18px;
     color: var(--color-cp-primary);
 }
+
+.card-select {
+    border: 2px dashed var(--color-cp-primary) !important;
+    cursor: pointer;
+}
+
+.color-primary {
+    color: var(--color-cp-primary);
+}
+
+.card-address {
+    cursor: pointer;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}
+
+.img-icon-details {
+    width: 50px;
+    height: 50px;
+    background-color: var(--color-cp-secondary);
+    color: var(--color-black);
+    font-size: 22px;
+    border-radius: 11px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.card-address .infos {
+    padding-left: 15px;
+    padding-right: 15px;
+    font-size: 14px;
+}
+
+.card-address .name {
+    color: var(--color-black);
+}
+
+.icon-edit {
+    font-size: 16px;
+}
