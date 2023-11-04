@@ -610,3 +610,23 @@ textarea {
 .icon-edit {
     font-size: 16px;
 }
+
+/* Pedido */
+
+.card-status-pedido {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 15px;
+}
+
+.card-status-pedido .infos {
+    padding-left: 15px;
+    padding-right: 15px;
+    font-size: 14px;
+}
+
+.card-status-pedido .infos .name {
+    color: var(--color-black);
+}
