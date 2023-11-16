@@ -141,3 +141,120 @@ h1.title-page {
   padding-left: 270px;
   padding-right: 15px;
 }
+
+.conteudo-inner {
+  margin-top: 50px;
+}
+
+/* Tela pedidos */
+
+.menus-pedido i {
+  margin-right: 5px;
+}
+
+.menus-pedido a {
+  margin-right: 10px;
+  opacity: 0.6;
+}
+
+.menus-pedido a.active,
+.menus-pedido a:hover {
+  opacity: 1;
+}
+
+.badge-total-pedidos {
+  display: inline-block;
+  background-color: var(--color-cp-secondary);
+  border-radius: 50px;
+  font-size: 14px;
+  width: 25px;
+  text-align: center;
+  margin-left: 5px;
+  color: var(--color-black);
+}
+
+.numero-pedido {
+  font-size: 16px;
+}
+
+.card-pedido .dropdown {
+  float: right;
+}
+
+.info-pedido {
+  font-size: 16px;
+  margin-bottom: 10px;
+  color: var(--color-black);
+}
+
+.info-pedido i {
+  width: 25px;
+  text-align: center;
+}
+
+.info-pedido span {
+  display: block;
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.separate {
+  height: 1px;
+  background-color: var(--color-text-out);
+  margin-bottom: 10px;
+  margin-top: 10px;
+}
+
+.horario-pedido {
+  margin-bottom: 0px;
+  font-size: 14px;
+}
+
+.total-pedido {
+  text-align: right;
+  margin-bottom: 0px;
+  margin-top: 15px;
+  color: var(--color-cp-primary);
+}
+
+.card-pedido {
+  box-shadow: 1px 0px 15px 3px rgba(0, 0, 0, 0.1) !important;
+  border-radius: 0px;
+}
+
+.card-pedido::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  height: 10px;
+  width: 100%;
+  top: -7px;
+  background: radial-gradient(circle, transparent, transparent 50%, #ffffff 50%, #ffffff 100%) -7px -8px / 16px 16px repeat-x;
+}
+
+.card-pedido::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  height: 10px;
+  width: 100%;
+  bottom: -7px;
+  background: radial-gradient(circle, transparent, transparent 50%, #ffffff 50%, #ffffff 100%) -15px 2px / 16px 16px repeat-x;
+}
+
+.card-pedido:hover {
+  background-color: var(--color-cp-secondary);
+}
+
+.card-pedido:hover::before,
+.card-pedido:hover::after {
+  background-image: radial-gradient(circle, transparent, transparent 50%, var(--color-cp-secondary) 50%, var(--color-cp-secondary) 100%);
+}
+
+.card-content {
+  cursor: pointer;
+}
+
+.card-pedido-body {
+  height: 140px;
+}
