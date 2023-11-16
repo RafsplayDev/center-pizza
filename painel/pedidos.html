@@ -135,7 +135,7 @@
                                             <p class="numero-pedido mt-2">#1</p>
                                         </div>
 
-                                        <div class="card-content">
+                                        <div class="card-content" data-bs-toggle="modal" data-bs-target="#modalDetalhes">
 
                                             <div class="card-pedido-body mt-3">
                                                 <p class="info-pedido">
@@ -181,7 +181,7 @@
                                             <p class="numero-pedido mt-2">#1</p>
                                         </div>
 
-                                        <div class="card-content">
+                                        <div class="card-content" data-bs-toggle="modal" data-bs-target="#modalDetalhes">
 
                                             <div class="card-pedido-body mt-3">
                                                 <p class="info-pedido">
@@ -218,6 +218,80 @@
         </div>
 
     </section>
+
+    <div id="modalDetalhes" class="modal fade" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">#1 <span class="horario-pedido">Recebido há 33 minutos</span></h5>
+                    <button class="btn btn-white btn-sm" type="button" data-bs-dismiss="modal" aria-label="Close">
+                        <i class="fas fa-times"></i>&nbsp; Fechar
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="container-dados-pedido pt-1">
+                        <div class="row">
+
+                            <div class="col-12">
+                                <div class="card card-address cursor-default">
+                                    <div class="img-icon-details">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    <div class="infos pr-0">
+                                        <div class="d-flex">
+                                            <p class="name mb-0"><b>Rafael Santos</b></p>
+                                            <span class="text mb-0">(77) 99148-0877</span>
+                                        </div>
+                                        <div class="d-flex">
+                                            <span class="info-pedido mb-0">
+                                                Recebido em 21/08 às 18:00
+                                            </span>
+                                            <span class="info-pedido mb-0 link">
+                                                <i class="fas fa-motorcycle"></i> Entrega
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="card card-address cursor-default mt-2">
+                                    <div class="img-icon-details">
+                                        <i class="fas fa-coins"></i>
+                                    </div>
+                                    <div class="infos pr-0">
+                                        <p class="name mb-0"><b>Dinheiro</b></p>
+                                        <span class="text mb-0">Troco para: R$ 50,00</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="card card-address mt-2">
+                                    <div class="img-icon-details">
+                                        <i class="fas fa-map-marked-alt"></i>
+                                    </div>
+                                    <div class="infos pr-0">
+                                        <p class="name mb-0"><b>Alderico Vieira Perdigão, 1353, Jardim Cruzeiro do Sul</b></p>
+                                        <span class="text mb-0">São Carlos-SP / CEP: 13572-150</span>
+                                    </div>
+                                    <div class="icon-edit">
+                                        <i class="fas fa-location-arrow"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script type="text/javascript" src="../js/bootstrap.bundle.min.js"></script>
 

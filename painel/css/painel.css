@@ -258,3 +258,60 @@ h1.title-page {
 .card-pedido-body {
   height: 140px;
 }
+
+/* Modal detalhes */
+
+.modal-content {
+  background: transparent;
+  border: none;
+}
+
+.modal-header {
+  border-bottom: 0;
+  background-color: var(--color-background);
+  border-radius: 0px;
+}
+
+.modal-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  height: 10px;
+  width: 100%;
+  top: -8px;
+  background: radial-gradient(circle, transparent, transparent 50%, var(--color-background) 50%, var(--color-background) 100%) -7px -8px / 16px 16px repeat-x;
+}
+
+.modal-title {
+  font-size: 18px;
+  color: var(--color-black);
+}
+
+.modal-title .horario-pedido {
+  font-size: 14px;
+  color: var(--color-text);
+  padding-left: 15px;
+}
+
+.modal-body {
+  padding: 0;
+}
+
+.container-dados-pedido {
+  padding: 20px;
+  padding-bottom: 25px;
+  background-color: var(--color-background);
+}
+
+.container-dados-pedido .d-flex {
+  justify-content: space-between;
+}
+
+.cursor-default {
+  cursor: default;
+}
+
+.container-dados-pedido .info-pedido {
+  font-size: 14px;
+  color: var(--color-text);
+}
