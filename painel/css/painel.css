@@ -315,3 +315,127 @@ h1.title-page {
   font-size: 14px;
   color: var(--color-text);
 }
+
+.container-itens-pedido {
+  padding: 20px;
+  background-color: var(--color-white);
+}
+
+.container-itens-pedido .card-item {
+  padding: 5px 0px 10px 0px;
+  border-bottom: 1px dashed #cdcdcd;
+}
+
+.container-itens-pedido .card-item:last-child {
+  border: none;
+}
+
+.container-itens-pedido::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  height: 10px;
+  width: 100%;
+  margin-top: 17px;
+  background: radial-gradient(circle, transparent, transparent 50%, #ffffff 50%, #ffffff 100%) -15px 2px / 16px 16px repeat-x;
+}
+
+.footer-btn {
+  display: flex;
+  justify-content: end;
+}
+
+/* Cardápio */
+
+.card-drag {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+
+.drag-icon {
+  display: flex;
+  width: 25px;
+  justify-content: center;
+  align-items: center;
+  font-size: 16px;
+  height: 35px;
+  cursor: grab;
+}
+
+.card-drag .infos {
+  flex: 1;
+  padding-left: 15px;
+  padding-right: 15px;
+  font-size: 16px;
+}
+
+.card-drag .infos .name {
+  color: var(--color-black) !important;
+  text-decoration: none !important;
+}
+
+.actions {
+  display: flex;
+}
+
+.icon-action {
+  margin-left: 10px;
+  font-size: 16px;
+  color: var(--color-black) !important;
+  text-decoration: none !important;
+  width: 35px;
+  height: 35px;
+  background-color: var(--color-white);
+  border-radius: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: var(--box-shadow);
+}
+
+.icon-action:hover {
+  background-color: var(--color-cp-secondary);
+}
+
+.title-produtos {
+  font-size: 14px;
+  color: var(--color-black);
+}
+
+.drag-icon-produto {
+  display: flex;
+  width: 35px;
+  justify-content: center;
+  align-items: center;
+  font-size: 16px;
+  cursor: grab;
+}
+
+.lista-produtos .container-img-produto {
+  display: flex;
+  justify-content: end;
+  align-items: end;
+}
+
+.lista-produtos .infos-produto {
+  flex: 1;
+}
+
+.badge-adicionais {
+  position: absolute;
+  top: 6px;
+  margin-left: 19px;
+  font-size: 12px;
+  background-color: var(--color-cp-primary);
+  color: var(--color-white);
+  width: 20px;
+  height: 20px;
+  border-radius: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
