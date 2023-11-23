@@ -308,7 +308,15 @@ h1.title-page {
 }
 
 .cursor-default {
-  cursor: default;
+  cursor: default !important;
+}
+
+.cursor-pointer {
+  cursor: pointer !important;
+}
+
+.cursor-text {
+  cursor: text;
 }
 
 .container-dados-pedido .info-pedido {
@@ -438,4 +446,201 @@ h1.title-page {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+/* Delivery e Retirada */
+
+.menus-config i {
+  margin-right: 5px;
+}
+
+.menus-config a {
+  margin-right: 10px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 25px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--color-separate);
+  transition: .4s;
+  -webkit-transition: .4s;
+}
+
+.slider::before {
+  content: "";
+  position: absolute;
+  height: 17px;
+  width: 17px;
+  left: 4px;
+  bottom: 4px;
+  background-color: var(--color-white);
+  transition: .4s;
+  -webkit-transition: .4s;
+}
+
+input:checked+.slider {
+  background-color: var(--color-cp-primary);
+}
+
+input:focus+.slider {
+  box-shadow: 0 0 1px var(--color-cp-primary);
+}
+
+input:checked+.slider::before {
+  transform: translateX(25px);
+  -webkit-transform: translateX(25px);
+  -ms-transform: translateX(25px);
+}
+
+.slider.round {
+  border-radius: 34px;
+}
+
+.slider.round::before {
+  border-radius: 50%;
+}
+
+.infos.config .text {
+  position: absolute;
+  left: 60px;
+  top: 2px;
+}
+
+.tempo {
+  display: flex;
+}
+
+.tempo label {
+  font-size: 14px;
+  color: var(--color-black);
+}
+
+.tempo .form-group {
+  margin-right: 20px;
+}
+
+.tempo .form-group:last-child {
+  margin-right: 0px;
+}
+
+.tempo.disabled label {
+  opacity: 0.65;
+}
+
+.tempo.disabled input {
+  background-color: #f5f5f5 !important;
+}
+
+.container-group.inline {
+  display: flex;
+  column-gap: 15px;
+}
+
+.group-select {
+  display: flex;
+}
+
+.group-select .container-check {
+  font-size: 16px;
+  color: var(--color-black);
+  font-weight: bold;
+  padding-left: 35px;
+  margin-right: 20px;
+  margin-bottom: 0;
+}
+
+.form-sm {
+  width: 150px;
+}
+
+.table {
+  font-size: 16px;
+}
+
+.table td {
+  color: var(--color-text);
+  vertical-align: middle;
+}
+
+.badge {
+  padding: 10px 15px;
+  border-radius: 50px;
+}
+
+.badge-success {
+  border: 1px solid var(--color-green);
+  color: var(--color-green);
+}
+
+.badge-danger {
+  border: 1px solid var(--color-red);
+  color: var(--color-red);
+}
+
+.color-red {
+  color: var(--color-red) !important;
+}
+
+.opacity-05 {
+  opacity: 0.5;
+}
+
+/* Empresa */
+
+.logo-empresa .container-img-sobre {
+  position: relative;
+  margin-top: 0;
+  width: 110px;
+  height: 110px;
+  right: 0;
+  margin-right: 20px;
+}
+
+.logo-empresa .icon-action {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+}
+
+.detalhes-empresa {
+  flex: 1;
+}
+
+.detalhes-empresa textarea {
+  height: 250px !important;
+}
+
+.container-cep .form-control {
+  padding-right: 75px;
+}
+
+.container-cep .btn {
+  float: right;
+  margin-top: -45px;
+  margin-right: 10px;
+}
+
+.horario .form-control {
+  height: 52px;
+}
+
+.horario .btn-red {
+  margin-top: 30px;
 }
