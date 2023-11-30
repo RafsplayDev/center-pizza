@@ -598,6 +598,10 @@ input:checked+.slider::before {
   color: var(--color-red) !important;
 }
 
+.color-green {
+  color: var(--color-green) !important;
+}
+
 .opacity-05 {
   opacity: 0.5;
 }
