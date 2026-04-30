@@ -10,6 +10,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { FormField, PasswordField } from '@/components/ui/FormField';
+import Button from '@/components/ui/Button';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -133,10 +134,15 @@ export default function AdminLoginPage() {
   return (
     <div
       className="vb-bg w-screen min-h-screen relative grid place-items-center overflow-hidden"
-      style={{ backgroundColor: 'var(--cp-dough)' }}
+      style={{ 
+        backgroundColor: 'var(--cp-dough)',
+        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(31,27,26,0.05) 1.5px, transparent 2px), radial-gradient(circle at 0 0, rgba(227,6,19,0.04) 1px, transparent 2px), radial-gradient(circle at 100% 100%, rgba(0,154,78,0.04) 1px, transparent 2px)',
+        backgroundSize: '32px 32px, 32px 32px, 32px 32px',
+        backgroundPosition: '0 0, 16px 16px, 0 16px'
+      }}
     >
       {/* Faixa tricolor italiana no topo */}
-      <div className="vb-flag absolute top-0 left-0 right-0 h-[6px]" />
+      <div className="absolute top-0 left-0 right-0 h-[6px]" style={{ background: 'linear-gradient(to right, #009A4E 0 33.33%, #FFF6E3 33.33% 66.66%, #E30613 66.66% 100%)' }} />
 
       {/* Card principal */}
       <div
@@ -288,13 +294,18 @@ export default function AdminLoginPage() {
           )}
 
           {/* Botão submit */}
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="btn btn-primary w-full mt-1 py-[15px] rounded-xl text-sm tracking-[0.08em] uppercase inline-flex items-center justify-center gap-2.5 disabled:opacity-70 disabled:cursor-not-allowed"
+            loading={loading}
+            loadingText="Entrando…"
+            size="lg"
+            fullWidth
+            iconRight={!loading ? <ArrowIcon size={14} /> : undefined}
+            className="mt-1"
           >
-            {loading ? 'Entrando…' : (<>Entrar <ArrowIcon size={14} /></>)}
-          </button>
+            Entrar
+          </Button>
         </form>
 
         {/* Links de suporte */}
@@ -324,20 +335,6 @@ export default function AdminLoginPage() {
         </div>
       </div>
 
-      <style jsx>{`
-        .vb-bg {
-          background-image:
-            radial-gradient(circle at 50% 50%, rgba(31,27,26,0.05) 1.5px, transparent 2px),
-            radial-gradient(circle at 0 0, rgba(227,6,19,0.04) 1px, transparent 2px),
-            radial-gradient(circle at 100% 100%, rgba(0,154,78,0.04) 1px, transparent 2px);
-          background-size: 32px 32px, 32px 32px, 32px 32px;
-          background-position: 0 0, 16px 16px, 0 16px;
-        }
-        .vb-flag {
-          background: linear-gradient(to right,
-            #009A4E 0 33.33%, #FFF6E3 33.33% 66.66%, #E30613 66.66% 100%);
-        }
-      `}</style>
     </div>
   );
 }

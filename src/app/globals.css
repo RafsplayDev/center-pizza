@@ -398,12 +398,21 @@ code, kbd, pre { font-family: var(--font-mono); font-size: 0.9em; }
   to   { opacity: 1; }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 .animate-fade-in-up {
   animation: fadeInUp var(--dur-3) var(--ease-out) both;
 }
 
 .animate-fade-in {
   animation: fadeIn var(--dur-3) var(--ease-out) both;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 
 /* ========================================================
