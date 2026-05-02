@@ -6,7 +6,7 @@
 // Tema escuro, retrátil (expanded / collapsed)
 // =============================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
@@ -100,10 +100,95 @@ export default function AdminSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(true);
+  const [activeItems, setActiveItems] = useState<number>(0);
+  const [isStoreOpen, setIsStoreOpen] = useState<boolean>(true);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  useEffect(() => {
+    async function fetchData() {
+      // 1. Fetch active products count
+      const { count } = await supabase
+        .from('produtos')
+        .select('*', { count: 'exact', head: true })
+        .eq('visivel', true);
+      
+      if (count !== null) setActiveItems(count);
+
+      // 2. Fetch store status
+      const { data: config } = await supabase
+        .from('configuracoes')
+        .select('aberta')
+        .eq('id', 'loja')
+        .single();
+      
+      if (config) setIsStoreOpen(config.aberta);
+    }
+
+    fetchData();
+    
+    // Ouvir evento de mudança global (vinda da TopBar, por exemplo)
+    window.addEventListener('store-status-changed', fetchData);
+    
+    // Opcional: Atualizar a cada minuto
+    const interval = setInterval(fetchData, 60000);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('store-status-changed', fetchData);
+    };
+  }, []);
+
+  const toggleStoreStatus = async () => {
+    setLoadingStatus(true);
+    const newStatus = !isStoreOpen;
+    
+    try {
+      const { error } = await supabase
+        .from('configuracoes')
+        .update({ aberta: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', 'loja');
+
+      if (!error) {
+        setIsStoreOpen(newStatus);
+        // Notificar outros componentes se necessário
+        window.dispatchEvent(new Event('store-status-changed'));
+        setNotification({ 
+          message: `Loja ${newStatus ? 'Aberta' : 'Fechada'} com sucesso!`, 
+          type: 'success' 
+        });
+      } else {
+        throw error;
+      }
+    } catch (err: any) {
+      console.error('Erro ao alternar status da loja:', err);
+      setNotification({ 
+        message: 'Erro no banco: ' + (err.message || 'Falha na conexão'), 
+        type: 'error' 
+      });
+    } finally {
+      setLoadingStatus(false);
+    }
+  };
+
+  const dynamicNavSections = navSections.map(section => ({
+    ...section,
+    items: section.items.map(item => {
+      if (item.label === 'Cardápio') return { ...item, badge: activeItems };
+      return item;
+    })
+  }));
 
   const w = expanded ? '240px' : '68px';
 
   return (
+    <>
     <aside
       className="admin-sidebar flex flex-col h-full flex-none overflow-y-auto overflow-x-hidden"
       style={{
@@ -127,11 +212,11 @@ export default function AdminSidebar() {
         {expanded && (
           <>
             <Image
-              src="/logo-center-pizza.png"
+              src="/logoquadrada.png"
               alt="Center Pizza"
               width={36}
               height={36}
-              style={{ objectFit: 'contain', flexShrink: 0, width: 'auto', height: 'auto' }}
+              style={{ objectFit: 'contain', flexShrink: 0 }}
             />
             <div className="flex flex-col leading-none min-w-0 flex-1">
               <span
@@ -168,7 +253,7 @@ export default function AdminSidebar() {
 
       {/* Nav sections */}
       <nav className="flex-1 py-3 px-2 flex flex-col gap-4">
-        {navSections.map((section) => (
+        {dynamicNavSections.map((section) => (
           <div key={section.title}>
             {expanded && (
               <span
@@ -246,6 +331,109 @@ export default function AdminSidebar() {
         ))}
       </nav>
 
+      {/* Footer / Status Area */}
+      {expanded && (
+        <div 
+          className="mt-auto p-4 border-t"
+          style={{ borderColor: dark.border }}
+        >
+          <div 
+            className="p-3 rounded-xl flex flex-col gap-2"
+            style={{ backgroundColor: dark.bgHover }}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-black uppercase tracking-widest opacity-40" style={{ color: dark.textActive }}>Status da Loja</span>
+              <button 
+                onClick={toggleStoreStatus}
+                disabled={loadingStatus}
+                className="group relative flex items-center bg-transparent border-0 cursor-pointer p-0 outline-none"
+              >
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md transition-all group-hover:bg-white/5">
+                   <div className={`w-1.5 h-1.5 rounded-full ${isStoreOpen ? 'bg-[var(--cp-green)] animate-pulse' : 'bg-zinc-500'}`} />
+                   <span className="text-[9px] font-black uppercase" style={{ color: isStoreOpen ? 'var(--cp-green)' : '#6B5D56' }}>
+                     {isStoreOpen ? 'Aberta' : 'Fechada'}
+                   </span>
+                </div>
+                
+                {/* Visual Switch */}
+                <div 
+                  className={`ml-2 w-7 h-4 rounded-full relative transition-all duration-300 ${isStoreOpen ? 'bg-[var(--cp-green)]/20' : 'bg-zinc-800'}`}
+                  style={{ border: `1px solid ${isStoreOpen ? 'var(--cp-green)' : '#444'}` }}
+                >
+                  <div 
+                    className={`absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all duration-300 ${isStoreOpen ? 'right-0.5 bg-[var(--cp-green)]' : 'left-0.5 bg-zinc-500'}`}
+                  />
+                </div>
+              </button>
+            </div>
+            
+            <div className="flex flex-col gap-1 mt-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold" style={{ color: dark.text }}>Pedidos hoje</span>
+                <span className="text-[10px] font-black" style={{ color: dark.textActive }}>24</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold" style={{ color: dark.text }}>Faturamento</span>
+                <span className="text-[10px] font-black" style={{ color: 'var(--cp-green)' }}>R$ 1.420,50</span>
+              </div>
+            </div>
+          </div>
+          
+          <button 
+            className="w-full mt-4 flex items-center gap-3 p-2 rounded-lg transition-all border-0 bg-transparent cursor-pointer"
+            style={{ color: dark.text, fontFamily: 'var(--font-body)' }}
+            onMouseEnter={(e) => {
+               e.currentTarget.style.backgroundColor = dark.logoutHoverBg;
+               e.currentTarget.style.color = 'var(--cp-red)';
+            }}
+            onMouseLeave={(e) => {
+               e.currentTarget.style.backgroundColor = 'transparent';
+               e.currentTarget.style.color = dark.text;
+            }}
+            onClick={async () => {
+               await supabase.auth.signOut();
+               router.push('/admin/login');
+            }}
+          >
+            <LogoutIcon size={18} />
+            <span className="text-[12px] font-bold uppercase tracking-wider">Sair da conta</span>
+          </button>
+        </div>
+      )}
+
+      {!expanded && (
+        <div className="mt-auto flex flex-col items-center py-4 gap-4 border-t" style={{ borderColor: dark.border }}>
+           <button 
+             onClick={toggleStoreStatus}
+             disabled={loadingStatus}
+             className={`w-2 h-2 rounded-full cursor-pointer border-0 p-0 transition-all ${isStoreOpen ? 'bg-[var(--cp-green)] animate-pulse shadow-[0_0_8px_var(--cp-green)]' : 'bg-zinc-600'}`} 
+             title={isStoreOpen ? "Loja Aberta - Clique para fechar" : "Loja Fechada - Clique para abrir"} 
+           />
+           <button 
+             className="bg-transparent border-0 cursor-pointer p-1"
+             style={{ color: dark.text }}
+             onClick={async () => {
+               await supabase.auth.signOut();
+               router.push('/admin/login');
+             }}
+           >
+             <LogoutIcon size={18} />
+           </button>
+        </div>
+      )}
     </aside>
+    {/* Toast Notification */}
+    {notification && (
+      <div 
+        className={`fixed bottom-8 right-8 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border-2 animate-in slide-in-from-right-10 duration-300
+          ${notification.type === 'success' ? 'bg-[var(--cp-green)] border-emerald-400 text-white' : 'bg-[var(--cp-red)] border-rose-400 text-white'}`}
+      >
+        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+        <span className="text-[13px] font-black uppercase tracking-wider">
+          {notification.message}
+        </span>
+      </div>
+    )}
+    </>
   );
 }

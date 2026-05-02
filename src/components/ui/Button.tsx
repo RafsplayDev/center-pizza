@@ -10,7 +10,7 @@ import { ButtonHTMLAttributes, ReactNode } from 'react';
 // -------------------------------------------------------------
 // Tipos
 // -------------------------------------------------------------
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -69,6 +69,17 @@ const variants: Record<ButtonVariant, { base: React.CSSProperties; hover: React.
     },
     hover: {
       backgroundColor: 'rgba(227,6,19,0.08)',
+    },
+  },
+  danger: {
+    base: {
+      backgroundColor: 'var(--cp-red)',
+      color: 'var(--cp-cream)',
+      boxShadow: '0 4px 0 0 var(--cp-red-deep)',
+    },
+    hover: {
+      backgroundColor: 'var(--cp-red-deep)',
+      boxShadow: '0 2px 0 0 #8B0310',
     },
   },
 };

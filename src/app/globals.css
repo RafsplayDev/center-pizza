@@ -166,6 +166,13 @@ html, body {
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input, textarea, [contenteditable="true"], .selectable {
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
 h1, .h1 {

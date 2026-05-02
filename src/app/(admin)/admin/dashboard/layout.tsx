@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import AdminTopBar from '@/components/admin/AdminTopBar';
+import LoadingScreen from '@/components/ui/LoadingScreen';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,28 +38,7 @@ export default function DashboardLayout({
 
   return (
     <>
-      {!ready && (
-        <div
-          className="w-screen h-screen grid place-items-center fixed top-0 left-0 z-[100]"
-          style={{ backgroundColor: 'var(--cp-dough)' }}
-        >
-          <div className="text-center">
-            <div
-              className="w-10 h-10 border-[3px] rounded-full mx-auto mb-4 animate-spin"
-              style={{
-                borderColor: 'var(--cp-line)',
-                borderTopColor: 'var(--cp-red)',
-              }}
-            />
-            <p
-              className="text-sm font-bold m-0"
-              style={{ color: 'var(--cp-ink-muted)', fontFamily: 'var(--font-body)' }}
-            >
-              Carregando painel...
-            </p>
-          </div>
-        </div>
-      )}
+      {!ready && <LoadingScreen fullScreen message="Carregando painel..." />}
 
       <div 
         className="flex h-screen overflow-hidden" 

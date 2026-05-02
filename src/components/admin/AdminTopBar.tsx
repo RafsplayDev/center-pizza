@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 
 // =============================================================
@@ -39,13 +39,62 @@ export default function AdminTopBar() {
   const dateStr = now.toLocaleDateString('pt-BR');
   const weekday = now.toLocaleDateString('pt-BR', { weekday: 'long' });
   const [storeOpen, setStoreOpen] = useState(true);
+  const searchParams = useSearchParams();
+  const filter = searchParams.get('filter');
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [activeCount, setActiveCount] = useState<number>(0);
+  const [inactiveCount, setInactiveCount] = useState<number>(0);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  async function fetchCounts() {
+    const { data } = await supabase.from('produtos').select('visivel');
+    if (data) {
+      setActiveCount(data.filter(p => p.visivel).length);
+      setInactiveCount(data.filter(p => !p.visivel).length);
+    }
+  }
+
+  async function fetchStoreStatus() {
+    const { data: config } = await supabase
+      .from('configuracoes')
+      .select('aberta')
+      .eq('id', 'loja')
+      .single();
+    
+    if (config) setStoreOpen(config.aberta);
+  }
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email || null);
     });
-  }, []);
+
+    fetchCounts();
+    fetchStoreStatus();
+
+    // Ouvir evento de mudança de status para atualizar contadores instantaneamente
+    window.addEventListener('product-status-changed', fetchCounts);
+    window.addEventListener('store-status-changed', fetchStoreStatus);
+
+    const interval = setInterval(() => {
+      fetchCounts();
+      fetchStoreStatus();
+    }, 60000);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('product-status-changed', fetchCounts);
+      window.removeEventListener('store-status-changed', fetchStoreStatus);
+    };
+  }, [pathname]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -87,69 +136,113 @@ export default function AdminTopBar() {
           </span>
         </div>
 
-        {/* Barra de busca */}
-        <div
-          className="flex items-center gap-2 px-3 py-2 rounded-lg border flex-1 max-w-[340px]"
-          style={{
-            borderColor: 'var(--cp-line)',
-            backgroundColor: 'var(--cp-flour)',
-          }}
-        >
-          <SearchIcon size={16} />
-          <input
-            type="text"
-            placeholder={pathname === '/admin/cardapio' ? 'Buscar item por nome ou có...' : 'Buscar pedido, cliente, item...'}
-            className="flex-1 bg-transparent border-0 outline-none text-xs font-semibold"
-            style={{
-              color: 'var(--cp-ink)',
-              fontFamily: 'var(--font-body)',
-            }}
-          />
+        {/* Status dos Produtos (Funciona como Filtro) */}
+        <div className="flex items-center gap-3 flex-1 max-w-[400px] ml-4">
+           <button 
+             onClick={() => router.push(pathname + (filter === 'ativos' ? '' : '?filter=ativos'))}
+             className={`flex items-center gap-2 border-2 cursor-pointer p-1.5 px-3 rounded-xl transition-all group ${filter === 'ativos' ? 'bg-[var(--cp-green)] border-[var(--cp-green)]' : 'bg-transparent border-transparent hover:bg-white/60'}`}
+           >
+              <div className={`w-2 h-2 rounded-full animate-pulse ${filter === 'ativos' ? 'bg-white' : 'bg-[var(--cp-green)]'}`} />
+              <div className="flex flex-col items-start leading-none">
+                <span className={`text-[11px] font-black uppercase tracking-wide transition-colors ${filter === 'ativos' ? 'text-white' : 'text-[var(--cp-ink)]'}`}>
+                  {activeCount} Ativos
+                </span>
+                <span className={`text-[8px] font-bold uppercase tracking-tighter ${filter === 'ativos' ? 'text-white/80' : 'text-[var(--cp-ink-muted)]'}`}>No Cardápio</span>
+              </div>
+           </button>
+           
+           <div className="w-[1px] h-6 bg-[var(--cp-line)] opacity-50" />
+
+           <button 
+             onClick={() => router.push(pathname + (filter === 'inativos' ? '' : '?filter=inativos'))}
+             className={`flex items-center gap-2 border-2 cursor-pointer p-1.5 px-3 rounded-xl transition-all group ${filter === 'inativos' ? 'bg-[var(--cp-red)] border-[var(--cp-red)]' : 'bg-transparent border-transparent hover:bg-white/60'}`}
+           >
+              <div className={`w-2 h-2 rounded-full ${filter === 'inativos' ? 'bg-white' : 'bg-[var(--cp-red)]'}`} />
+              <div className="flex flex-col items-start leading-none">
+                <span className={`text-[11px] font-black uppercase tracking-wide transition-colors ${filter === 'inativos' ? 'text-white' : 'text-[var(--cp-ink)]'}`}>
+                  {inactiveCount} Inativos
+                </span>
+                <span className={`text-[8px] font-bold uppercase tracking-tighter ${filter === 'inativos' ? 'text-white/80' : 'text-[var(--cp-ink-muted)]'}`}>Ocultos</span>
+              </div>
+           </button>
+
         </div>
 
-        {/* Status da loja */}
-        <button
-          onClick={() => setStoreOpen(!storeOpen)}
-          className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border-0 cursor-pointer transition-colors"
-          style={{
-            backgroundColor: storeOpen ? 'rgba(0,154,78,0.1)' : 'rgba(227,6,19,0.1)',
-            fontSize: '11px',
-            fontWeight: 700,
-            fontFamily: 'var(--font-body)',
-            color: storeOpen ? 'var(--cp-green)' : 'var(--cp-red)',
-          }}
-        >
-          {/* Toggle switch */}
-          <span
-            className="relative flex-none rounded-full transition-colors"
+        <div className="flex items-center gap-1 ml-auto">
+          {/* Status da loja */}
+          <button
+            onClick={async () => {
+              if (loadingStatus) return;
+              setLoadingStatus(true);
+              const newStatus = !storeOpen;
+              
+              try {
+                const { error } = await supabase
+                  .from('configuracoes')
+                  .update({ aberta: newStatus, updated_at: new Date().toISOString() })
+                  .eq('id', 'loja');
+
+                if (!error) {
+                  setStoreOpen(newStatus);
+                  window.dispatchEvent(new Event('store-status-changed'));
+                  setNotification({ 
+                    message: `Loja ${newStatus ? 'Aberta' : 'Fechada'} com sucesso!`, 
+                    type: 'success' 
+                  });
+                } else {
+                  throw error;
+                }
+              } catch (err: any) {
+                console.error('Erro ao alternar status da loja:', err);
+                setNotification({ 
+                  message: 'Erro ao atualizar: ' + (err.message || 'Verifique o banco'), 
+                  type: 'error' 
+                });
+              } finally {
+                setLoadingStatus(false);
+              }
+            }}
+            disabled={loadingStatus}
+            className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border-0 cursor-pointer transition-colors mr-2"
             style={{
-              width: '32px',
-              height: '18px',
-              backgroundColor: storeOpen ? 'var(--cp-green)' : 'var(--cp-red)',
+              backgroundColor: storeOpen ? 'rgba(0,154,78,0.1)' : 'rgba(227,6,19,0.1)',
+              fontSize: '11px',
+              fontWeight: 700,
+              fontFamily: 'var(--font-body)',
+              color: storeOpen ? 'var(--cp-green)' : 'var(--cp-red)',
             }}
           >
+            {/* Toggle switch */}
             <span
-              className="absolute top-[2px] rounded-full transition-all"
+              className="relative flex-none rounded-full transition-colors"
               style={{
-                width: '14px',
-                height: '14px',
-                backgroundColor: 'white',
-                left: storeOpen ? '16px' : '2px',
-                transition: 'left 200ms ease',
+                width: '32px',
+                height: '18px',
+                backgroundColor: storeOpen ? 'var(--cp-green)' : 'var(--cp-red)',
               }}
-            />
-          </span>
-          <div className="flex flex-col text-left leading-none">
-            <span className="font-black text-[11px] tracking-wide uppercase">
-              Loja {storeOpen ? 'Aberta' : 'Fechada'}
+            >
+              <span
+                className="absolute top-[2px] rounded-full transition-all"
+                style={{
+                  width: '14px',
+                  height: '14px',
+                  backgroundColor: 'white',
+                  left: storeOpen ? '16px' : '2px',
+                  transition: 'left 200ms ease',
+                }}
+              />
             </span>
-            <span className="text-[9px] font-bold opacity-70 mt-[3px] tracking-wider uppercase">
-              {storeOpen ? 'Fecha às 23:59' : 'Abre às 18:00'}
-            </span>
-          </div>
-        </button>
+            <div className="flex flex-col text-left leading-none">
+              <span className="font-black text-[11px] tracking-wide uppercase">
+                {storeOpen ? 'Aberta' : 'Fechada'}
+              </span>
+              <span className="text-[9px] font-bold opacity-70 mt-[3px] tracking-wider uppercase">
+                {storeOpen ? '23:59' : '18:00'}
+              </span>
+            </div>
+          </button>
 
-        <div className="flex items-center gap-1 ml-auto">
+          <div className="w-[1px] h-6 mx-2 bg-[var(--cp-line)]" />
           {/* Notificações */}
           <button
             className="relative bg-transparent border-0 cursor-pointer p-2 rounded-lg transition-colors"
@@ -191,6 +284,19 @@ export default function AdminTopBar() {
           </button>
         </div>
       </header>
+
+      {/* Toast Notification */}
+      {notification && (
+        <div 
+          className={`fixed bottom-8 right-8 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border-2 animate-in slide-in-from-right-10 duration-300
+            ${notification.type === 'success' ? 'bg-[var(--cp-green)] border-emerald-400 text-white' : 'bg-[var(--cp-red)] border-rose-400 text-white'}`}
+        >
+          <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+          <span className="text-[13px] font-black uppercase tracking-wider">
+            {notification.message}
+          </span>
+        </div>
+      )}
     </>
   );
 }

@@ -65,14 +65,16 @@ export default function AdminLoginPage() {
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [resetMode, setResetMode] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMsg, setResetMsg] = useState('');
 
   // Carregar preferência "manter conectado" do localStorage
   useEffect(() => {
     const saved = localStorage.getItem('cp-remember');
-    if (saved !== null) setRemember(saved === 'true');
+    if (saved !== null) {
+      const isTrue = saved === 'true';
+      setTimeout(() => setRemember(isTrue), 0);
+    }
   }, []);
 
   // Salvar preferência quando muda
@@ -164,7 +166,7 @@ export default function AdminLoginPage() {
           }}
         >
           <Image
-            src="/logo-center-pizza.png"
+            src="/logoquadrada.png"
             alt="Center Pizza Logo"
             width={110}
             height={110}
