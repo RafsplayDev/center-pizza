@@ -242,6 +242,8 @@ export default function ClientHome() {
     endereco: '',
     numero: '',
     bairro: '',
+    cidade: '',
+    uf: '',
     referencia: '',
     pagamento: 'pix' as 'pix' | 'cartao' | 'dinheiro',
     troco: '',
@@ -253,6 +255,9 @@ export default function ClientHome() {
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  // Coordenadas obtidas direto pelo CEP (BrasilAPI v2). Quando disponíveis,
+  // pulamos a busca no Nominatim (cuja cobertura para ruas residenciais BR é fraca).
+  const [cepCoords, setCepCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [showPixModal, setShowPixModal] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   
@@ -634,56 +639,114 @@ export default function ClientHome() {
   };
 
   const handleCalculateDelivery = async () => {
-    if (!userData.endereco || !userData.numero || !userData.bairro || !storeConfig?.latitude) {
+    if (!userData.endereco || !userData.numero || !userData.bairro) {
+      return;
+    }
+    if (!storeConfig?.latitude || !storeConfig?.longitude) {
+      setDeliveryError('Loja sem coordenadas configuradas. Avise o estabelecimento.');
       return;
     }
 
     setIsCalculatingDistance(true);
     setDeliveryError(null);
 
+    // Atalho: se já temos coordenadas do CEP (via BrasilAPI v2), usamos direto.
+    // É mais rápido, mais confiável e dispensa a busca no Nominatim.
+    if (cepCoords) {
+      try {
+        const distance = getDistance(
+          storeConfig.latitude,
+          storeConfig.longitude,
+          cepCoords.lat,
+          cepCoords.lon
+        );
+        const taxa = taxasEntrega.find(
+          t => distance >= t.distancia_min && distance <= t.distancia_max
+        );
+        if (taxa) {
+          setUserData(prev => ({ ...prev, deliveryFee: Number(taxa.valor) }));
+          setDeliveryError(null);
+        } else {
+          setUserData(prev => ({ ...prev, deliveryFee: 0 }));
+          setDeliveryError('Desculpe, não entregamos nesta distância.');
+        }
+      } catch (err) {
+        console.error('Erro ao calcular distância (cepCoords):', err);
+        setDeliveryError('Erro ao calcular taxa de entrega.');
+      } finally {
+        setIsCalculatingDistance(false);
+      }
+      return;
+    }
+
     try {
       let citySuffix = "";
-      let city = "";
-      let state = "";
-      
-      if (storeConfig?.endereco) {
+      let city = userData.cidade || "";
+      let state = userData.uf || "";
+
+      // Fallback para a cidade da loja se o usuário não preencheu/buscou CEP
+      if (!city && storeConfig?.endereco) {
         const parts = storeConfig.endereco.split(',');
         if (parts.length >= 3) {
-          citySuffix = `, ${parts.slice(-2).join(', ').trim()}`;
           city = parts[parts.length - 2].trim().replace(/ - [A-Z]{2}$/, '');
           const stateMatch = parts[parts.length - 1].match(/([A-Z]{2})/);
-          if (stateMatch) state = stateMatch[1];
-        } else if (parts.length > 0) {
-          citySuffix = `, ${parts[parts.length - 1].trim()}`;
+          if (stateMatch && !state) state = stateMatch[1];
         }
       }
 
-      // 1. Tentar busca ultra específica Estruturada (recomendada pelo Nominatim para maior precisão)
+      if (city && state) {
+        citySuffix = `, ${city} - ${state}`;
+      } else if (city) {
+        citySuffix = `, ${city}`;
+      }
+
+      // Busca estruturada (mais precisa quando bate). Nominatim não tem campo "neighborhood"
+      // na busca estruturada, então o bairro só entra nas queries free-form (q=).
       let structuredQuery = `https://nominatim.openstreetmap.org/search?format=json&limit=1`;
       if (userData.cep) structuredQuery += `&postalcode=${userData.cep.replace(/\D/g, '')}`;
-      structuredQuery += `&street=${encodeURIComponent(`${userData.numero} ${userData.endereco}`)}`;
-      if (city) structuredQuery += `&city=${encodeURIComponent(city)}`;
-      if (state) structuredQuery += `&state=${encodeURIComponent(state)}`;
-      structuredQuery += `&country=Brazil`;
-      
-      let queries = [
-        structuredQuery,
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${userData.endereco}, ${userData.numero} - ${userData.bairro}${citySuffix}`)}&limit=1`,
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${userData.endereco}, ${userData.numero}${citySuffix}`)}&limit=1`,
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${userData.endereco}${citySuffix}`)}&limit=1`
+      let structuredQueryWithNum = structuredQuery + `&street=${encodeURIComponent(`${userData.numero} ${userData.endereco}`)}`;
+      let structuredQueryWithoutNum = structuredQuery + `&street=${encodeURIComponent(userData.endereco)}`;
+
+      if (city) {
+        structuredQueryWithNum += `&city=${encodeURIComponent(city)}`;
+        structuredQueryWithoutNum += `&city=${encodeURIComponent(city)}`;
+      }
+      if (state) {
+        structuredQueryWithNum += `&state=${encodeURIComponent(state)}`;
+        structuredQueryWithoutNum += `&state=${encodeURIComponent(state)}`;
+      }
+      structuredQueryWithNum += `&country=Brazil`;
+      structuredQueryWithoutNum += `&country=Brazil`;
+
+      const buildFreeForm = (parts: string[]) =>
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(parts.filter(Boolean).join(', '))}`;
+
+      // Ordem da mais específica (rua + número + bairro) para a mais ampla (só bairro)
+      const queries = [
+        structuredQueryWithNum,
+        structuredQueryWithoutNum,
+        buildFreeForm([`${userData.endereco}, ${userData.numero}`, userData.bairro, city, state, 'Brasil']),
+        buildFreeForm([userData.endereco, userData.bairro, city, state, 'Brasil']),
+        buildFreeForm([`${userData.endereco}${citySuffix}`]),
+        buildFreeForm([userData.bairro, city, state, 'Brasil']),
       ];
 
       let data = null;
-      for (const q of queries) {
+      for (let i = 0; i < queries.length; i++) {
         try {
-          const response = await fetch(q);
+          const response = await fetch(queries[i]);
           const result = await response.json();
           if (result && result.length > 0) {
             data = result;
             break;
           }
         } catch (e) {
-          console.error(`Erro na query "${q}":`, e);
+          console.error(`Erro na query "${queries[i]}":`, e);
+        }
+
+        // Pausa de 1.1s entre requisições (política do OpenStreetMap: max 1 req/s)
+        if (i < queries.length - 1 && !data) {
+          await new Promise(resolve => setTimeout(resolve, 1100));
         }
       }
 
@@ -713,29 +776,67 @@ export default function ClientHome() {
     }
   };
 
-  // Busca de CEP via ViaCEP
+  // Busca de CEP: tenta BrasilAPI v2 (que já traz coordenadas) e cai para ViaCEP.
+  // Salvar as coordenadas direto do CEP evita depender do Nominatim, que tem
+  // cobertura muito limitada para ruas residenciais brasileiras.
   const handleCepSearch = async (cepStr: string) => {
     const cleanCep = cepStr.replace(/\D/g, '');
     setUserData(prev => ({ ...prev, cep: cepStr }));
-    
+    // Reset das coordenadas anteriores quando o CEP muda
+    setCepCoords(null);
+
     if (cleanCep.length === 8) {
       setIsSearchingCep(true);
+       let logradouro = '';
+       let bairro = '';
+       let cidade = '';
+       let uf = '';
+       let coords: { lat: number; lon: number } | null = null;
+
+      // 1) BrasilAPI v2 — retorna address + coordenadas (quando disponíveis)
       try {
-        const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-        const data = await response.json();
-        
-        if (!data.erro) {
-          setUserData(prev => ({
-            ...prev,
-            endereco: data.logradouro || prev.endereco,
-            bairro: data.bairro || prev.bairro,
-          }));
+        const resp = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          logradouro = data.street || '';
+          bairro = data.neighborhood || '';
+          cidade = data.city || '';
+          uf = data.state || '';
+          const lat = data?.location?.coordinates?.latitude;
+          const lon = data?.location?.coordinates?.longitude;
+          if (lat && lon) {
+            coords = { lat: parseFloat(lat), lon: parseFloat(lon) };
+          }
         }
       } catch (err) {
-        console.error('Erro ao buscar CEP:', err);
-      } finally {
-        setIsSearchingCep(false);
+        console.warn('BrasilAPI v2 falhou, tentando ViaCEP:', err);
       }
+
+      // 2) ViaCEP — fallback para logradouro/bairro caso BrasilAPI não tenha
+      if (!logradouro || !bairro) {
+        try {
+          const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+          const data = await response.json();
+          if (!data.erro) {
+            logradouro = logradouro || data.logradouro || '';
+            bairro = bairro || data.bairro || '';
+            cidade = cidade || data.localidade || '';
+            uf = uf || data.uf || '';
+          }
+        } catch (err) {
+          console.error('Erro ao buscar CEP no ViaCEP:', err);
+        }
+      }
+
+      setUserData(prev => ({
+        ...prev,
+        endereco: logradouro || prev.endereco,
+        bairro: bairro || prev.bairro,
+        cidade: cidade || prev.cidade,
+        uf: uf || prev.uf,
+      }));
+      if (coords) setCepCoords(coords);
+      setIsSearchingCep(false);
     }
   };
 
@@ -748,15 +849,17 @@ export default function ClientHome() {
     }
 
     if (userData.endereco.length > 5 && userData.numero.length > 0 && userData.bairro.length > 3) {
+      // Se já temos coords do CEP, calcula imediatamente; senão aguarda 1s para o usuário terminar de digitar
+      const debounce = cepCoords ? 100 : 1000;
       const timer = setTimeout(() => {
         handleCalculateDelivery();
-      }, 1000);
+      }, debounce);
       return () => clearTimeout(timer);
     } else {
       setUserData(prev => ({ ...prev, deliveryFee: 0 }));
       setDeliveryError(null);
     }
-  }, [userData.endereco, userData.numero, userData.bairro, userData.entregaTipo]);
+  }, [userData.endereco, userData.numero, userData.bairro, userData.cidade, userData.uf, userData.entregaTipo, cepCoords]);
 
   const totalCartItems = cartItems.reduce((acc, item) => acc + item.quantidade, 0);
   const cartSubtotal = cartItems.reduce((acc, item) => acc + item.total, 0);
@@ -1512,6 +1615,31 @@ export default function ClientHome() {
                           />
                         </div>
                       </div>
+
+                      <div className="grid grid-cols-[1fr_80px] gap-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">Cidade</label>
+                          <input 
+                            type="text" 
+                            placeholder="Cidade"
+                            className="w-full h-14 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px]"
+                            value={userData.cidade}
+                            onChange={(e) => setUserData({...userData, cidade: e.target.value})}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">UF</label>
+                          <input 
+                            type="text" 
+                            placeholder="UF"
+                            maxLength={2}
+                            className="w-full h-14 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px] text-center uppercase"
+                            value={userData.uf}
+                            onChange={(e) => setUserData({...userData, uf: e.target.value.toUpperCase()})}
+                          />
+                        </div>
+                      </div>
+
                       <div className="flex flex-col gap-1.5">
                         <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">Ponto de Referência</label>
                         <input 
