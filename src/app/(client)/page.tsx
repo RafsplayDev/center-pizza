@@ -247,6 +247,7 @@ export default function ClientHome() {
     referencia: '',
     pagamento: 'pix' as 'pix' | 'cartao' | 'dinheiro',
     troco: '',
+    semTroco: false,
     entregaTipo: 'entrega' as 'entrega' | 'retirada',
     deliveryFee: 0
   });
@@ -388,7 +389,10 @@ export default function ClientHome() {
           endereco: parsed.endereco || '',
           numero: parsed.numero || '',
           bairro: parsed.bairro || '',
-          referencia: parsed.referencia || ''
+          cidade: parsed.cidade || '',
+          uf: parsed.uf || '',
+          referencia: parsed.referencia || '',
+          semTroco: parsed.semTroco || false
         }));
       } catch (e) {
         console.error('Erro ao carregar dados salvos:', e);
@@ -643,6 +647,8 @@ export default function ClientHome() {
       return;
     }
     if (!storeConfig?.latitude || !storeConfig?.longitude) {
+      // Se ainda estamos carregando, não mostramos erro ainda para evitar falso positivo
+      if (loading) return;
       setDeliveryError('Loja sem coordenadas configuradas. Avise o estabelecimento.');
       return;
     }
@@ -859,11 +865,28 @@ export default function ClientHome() {
       setUserData(prev => ({ ...prev, deliveryFee: 0 }));
       setDeliveryError(null);
     }
-  }, [userData.endereco, userData.numero, userData.bairro, userData.cidade, userData.uf, userData.entregaTipo, cepCoords]);
+  }, [userData.endereco, userData.numero, userData.bairro, userData.cidade, userData.uf, userData.entregaTipo, cepCoords, storeConfig, loading]);
+
+  const trocoRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (userData.pagamento === 'dinheiro') {
+      setTimeout(() => {
+        trocoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+    }
+  }, [userData.pagamento]);
 
   const totalCartItems = cartItems.reduce((acc, item) => acc + item.quantidade, 0);
   const cartSubtotal = cartItems.reduce((acc, item) => acc + item.total, 0);
   const cartTotal = cartSubtotal + userData.deliveryFee;
+
+  const isTrocoValid = useMemo(() => {
+    if (userData.pagamento !== 'dinheiro') return true;
+    if (userData.semTroco) return true;
+    const trocoVal = parseFloat(userData.troco.replace(',', '.'));
+    return !isNaN(trocoVal) && trocoVal > cartTotal;
+  }, [userData.pagamento, userData.semTroco, userData.troco, cartTotal]);
 
   const getProductQuantity = (prodId: string) => {
     return cartItems
@@ -893,49 +916,47 @@ export default function ClientHome() {
     const phone = '5516981886165';
     
     let message = `*NOVO PEDIDO - CENTER PIZZA*\n`;
-    message += `------------------------------\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     
     message += `*CLIENTE:* ${userData.nome}\n`;
-    message += `*CONTATO:* ${userData.telefone}\n`;
+    message += `*FONE:* ${userData.telefone}\n`;
     
     if (userData.entregaTipo === 'entrega') {
-      message += `*TIPO:* ENTREGA\n`;
-      if (userData.cep) message += `*CEP:* ${userData.cep}\n`;
-      message += `*ENDEREÇO:* ${userData.endereco}, ${userData.numero}\n`;
+      message += `*ENTREGA:* ${userData.endereco}, ${userData.numero}\n`;
       message += `*BAIRRO:* ${userData.bairro}\n`;
       if (userData.referencia) message += `*REF:* ${userData.referencia}\n`;
     } else {
       message += `*TIPO:* RETIRADA NA LOJA\n`;
     }
-    message += `\n------------------------------\n\n`;
     
-    message += `*ITENS:*\n`;
+    message += `\n*ITENS:*\n`;
     cartItems.forEach(item => {
-      message += `${item.quantidade}x *${item.nome}* - R$ ${formatPrice(item.total)}\n`;
+      message += `• ${item.quantidade}x *${item.nome}* (R$ ${formatPrice(item.total)})\n`;
       if (item.opcoes.length > 0) {
         item.opcoes.forEach(opt => {
           const separator = opt.is_meio_a_meio ? ' / ' : ', ';
-          message += `  _> ${opt.complemento_nome}: ${opt.itens.map(i => i.nome).join(separator)}_\n`;
+          message += `   └ _${opt.itens.map(i => i.nome).join(separator)}_\n`;
         });
       }
-      if (item.observacao) message += `  _Obs: ${item.observacao}_\n`;
-      message += `\n`;
+      if (item.observacao) message += `   └ _Obs: ${item.observacao}_\n`;
     });
     
-    message += `------------------------------\n`;
+    message += `\n━━━━━━━━━━━━━━━━━━━━━━\n`;
     message += `*SUBTOTAL:* R$ ${formatPrice(cartSubtotal)}\n`;
     if (userData.deliveryFee > 0) {
       message += `*TAXA DE ENTREGA:* R$ ${formatPrice(userData.deliveryFee)}\n`;
     } else {
       message += `*TAXA DE ENTREGA:* Grátis\n`;
     }
-    message += `*TOTAL DO PEDIDO:* R$ ${formatPrice(cartTotal)}\n`;
+    message += `*TOTAL: R$ ${formatPrice(cartTotal)}*\n\n`;
+    
     message += `*FORMA DE PAGAMENTO:* ${userData.pagamento.toUpperCase()}\n`;
-    if (userData.pagamento === 'dinheiro' && userData.troco) {
-      message += `*TROCO PARA:* R$ ${userData.troco}\n`;
+    if (userData.pagamento === 'dinheiro') {
+      message += userData.semTroco ? `*TROCO:* NÃO PRECISA\n` : `*TROCO PARA:* R$ ${userData.troco}\n`;
     }
-    message += `\n------------------------------\n`;
-    message += `_Pedido gerado via Center Pizza Digital_`;
+    
+    message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `_Gerado via Center Pizza Digital_`;
 
     // Salvar dados no navegador para futuras compras
     localStorage.setItem('cp_user_data', JSON.stringify({
@@ -944,10 +965,12 @@ export default function ClientHome() {
       endereco: userData.endereco,
       numero: userData.numero,
       bairro: userData.bairro,
-      referencia: userData.referencia
+      cidade: userData.cidade,
+      uf: userData.uf,
+      referencia: userData.referencia,
+      semTroco: userData.semTroco
     }));
-
-    const encodedMessage = encodeURIComponent(message);
+const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
     
     // Reset states after sending
@@ -1295,6 +1318,11 @@ export default function ClientHome() {
                             <label key={opt.id} className={`flex items-center justify-between p-5 rounded-md border-2 transition-all cursor-pointer ${isSelected ? 'bg-[var(--cp-dough)] border-[var(--cp-red)]' : 'bg-white border-[var(--cp-line)] hover:border-[var(--cp-ink)]'}`}>
                               <div className="flex flex-col">
                                 <span className="text-[16px] font-black text-[var(--cp-ink)]">{opt.nome}</span>
+                                {opt.descricao && (
+                                  <span className="text-[11px] opacity-40 font-bold block leading-tight mt-0.5 uppercase italic tracking-tighter">
+                                    {opt.descricao}
+                                  </span>
+                                )}
                               </div>
                               <div className="flex items-center gap-4">
                                 {!isSelected && (
@@ -1315,14 +1343,21 @@ export default function ClientHome() {
                                     comp.is_meio_a_meio && mode === 'meio' ? (
                                       <span className="text-[13px] font-black">{selectionIndex}</span>
                                     ) : comp.max_opcoes === 1 ? (
-                                      <div className="w-2.5 h-2.5 bg-white rounded-sm" />
+                                      <div className="w-2.5 h-2.5 bg-white rounded-full shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)]" />
                                     ) : (
                                       <CheckIcon size={16} strokeWidth={4} />
                                     )
-                                  ) : null}
+                                  ) : (
+                                    comp.max_opcoes === 1 && <div className="w-2.5 h-2.5 bg-[var(--cp-ink)] opacity-10 rounded-full" />
+                                  )}
                                 </div>
                               </div>
-                              <input type={comp.max_opcoes === 1 ? "radio" : "checkbox"} name={comp.id} className="hidden" checked={isSelected} onChange={() => toggleOption(comp, opt.id, comp.max_opcoes === 1)} />
+                              <input 
+                                type={comp.max_opcoes === 1 ? "radio" : "checkbox"} 
+                                className="hidden" 
+                                checked={isSelected} 
+                                onChange={() => toggleOption(comp, opt.id, comp.max_opcoes === 1)} 
+                              />
                             </label>
                           );
                         })
@@ -1331,8 +1366,7 @@ export default function ClientHome() {
                   </div>
                 );
               })}
-
-              <div className="mt-12">
+                                <div className="mt-12">
                 <h4 className="text-[20px] font-black m-0 uppercase tracking-tight mb-6 pb-2 border-b-2 border-[var(--cp-ink)]" style={{ fontFamily: 'var(--font-display-alt)' }}>Alguma observação?</h4>
                 <textarea 
                   className="w-full h-32 p-5 rounded-md border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all text-[16px] font-bold placeholder:opacity-20 resize-none"
@@ -1540,6 +1574,8 @@ export default function ClientHome() {
                       <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">Seu Nome</label>
                       <input 
                         type="text" 
+                        name="name"
+                        autoComplete="name"
                         placeholder="Como devemos te chamar?"
                         className="w-full h-14 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px]"
                         value={userData.nome}
@@ -1550,6 +1586,8 @@ export default function ClientHome() {
                       <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">Telefone / WhatsApp</label>
                       <input 
                         type="tel" 
+                        name="tel"
+                        autoComplete="tel"
                         placeholder="(00) 00000-0000"
                         className="w-full h-14 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px]"
                         value={userData.telefone}
@@ -1569,6 +1607,8 @@ export default function ClientHome() {
                         <div className="relative">
                           <input 
                             type="text" 
+                            name="postal-code"
+                            autoComplete="postal-code"
                             placeholder="00000-000"
                             maxLength={9}
                             className="w-full h-14 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px]"
@@ -1587,6 +1627,8 @@ export default function ClientHome() {
                         <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">Rua / Logradouro</label>
                         <input 
                           type="text" 
+                          name="street-address"
+                          autoComplete="address-line1"
                           placeholder="Nome da rua"
                           className="w-full h-14 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px]"
                           value={userData.endereco}
@@ -1598,6 +1640,7 @@ export default function ClientHome() {
                           <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">Número</label>
                           <input 
                             type="text" 
+                            name="address-number"
                             placeholder="Ex: 123"
                             className="w-full h-14 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px]"
                             value={userData.numero}
@@ -1608,6 +1651,8 @@ export default function ClientHome() {
                           <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">Bairro</label>
                           <input 
                             type="text" 
+                            name="neighborhood"
+                            autoComplete="address-level3"
                             placeholder="Seu bairro"
                             className="w-full h-14 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px]"
                             value={userData.bairro}
@@ -1621,6 +1666,8 @@ export default function ClientHome() {
                           <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">Cidade</label>
                           <input 
                             type="text" 
+                            name="city"
+                            autoComplete="address-level2"
                             placeholder="Cidade"
                             className="w-full h-14 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px]"
                             value={userData.cidade}
@@ -1631,6 +1678,8 @@ export default function ClientHome() {
                           <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">UF</label>
                           <input 
                             type="text" 
+                            name="state"
+                            autoComplete="address-level1"
                             placeholder="UF"
                             maxLength={2}
                             className="w-full h-14 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px] text-center uppercase"
@@ -1662,13 +1711,19 @@ export default function ClientHome() {
                           <div className="w-full p-3 bg-rose-50 border-2 border-rose-200 rounded-xl flex gap-2 items-center">
                             <AlertCircle size={16} className="text-rose-500 flex-none" />
                             <span className="text-[11px] font-bold text-rose-600 uppercase tracking-tight">{deliveryError}</span>
+       
                           </div>
                         ) : userData.deliveryFee > 0 ? (
-                          <div className="w-full p-3 bg-emerald-50 border-2 border-emerald-200 rounded-xl flex gap-2 items-center">
-                            <CheckIcon size={16} className="text-emerald-500 flex-none" />
-                            <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-tight">
-                              Taxa de entrega: R$ {formatPrice(userData.deliveryFee)}
-                            </span>
+                          <div className="w-full p-4 bg-emerald-50 border-2 border-emerald-200 rounded-2xl flex gap-3 items-center animate-in zoom-in-95 duration-300">
+                            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-none">
+                              <CheckIcon size={20} className="text-emerald-600" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[14px] font-black text-emerald-800 leading-none">Entregamos nesse endereço!</span>
+                              <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider mt-1.5 opacity-70">
+                                Taxa de entrega: R$ {formatPrice(userData.deliveryFee)}
+                              </span>
+                            </div>
                           </div>
                         ) : userData.endereco && (
                           <div className="w-full p-3 bg-zinc-50 border-2 border-zinc-200 rounded-xl flex gap-2 items-center">
@@ -1704,15 +1759,31 @@ export default function ClientHome() {
                     ))}
                     
                     {userData.pagamento === 'dinheiro' && (
-                      <div className="mt-2 animate-in slide-in-from-top-2 duration-200">
-                        <label className="text-[10px] font-black uppercase tracking-wider opacity-40 ml-1">Troco para quanto?</label>
-                        <input 
-                          type="text" 
-                          placeholder="Ex: 100,00"
-                          className="w-full h-12 px-5 rounded-xl border-2 border-[var(--cp-ink)] bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px]"
-                          value={userData.troco}
-                          onChange={(e) => setUserData({...userData, troco: e.target.value})}
-                        />
+                      <div ref={trocoRef} className="mt-2 animate-in slide-in-from-top-2 duration-200 space-y-4">
+                        <div className="flex items-center justify-between px-1">
+                          <label className="text-[10px] font-black uppercase tracking-wider opacity-40">Troco para quanto?</label>
+                          <button 
+                            onClick={() => setUserData({...userData, semTroco: !userData.semTroco, troco: ''})}
+                            className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border-2 transition-all ${userData.semTroco ? 'bg-[var(--cp-green)] text-white border-[var(--cp-green)]' : 'bg-white text-[var(--cp-ink)] border-[var(--cp-ink)] opacity-40'}`}
+                          >
+                            Não preciso de troco
+                          </button>
+                        </div>
+                        
+                        {!userData.semTroco && (
+                          <div className="space-y-2 animate-in fade-in duration-300">
+                            <input 
+                              type="text" 
+                              placeholder="Ex: 100,00"
+                              className={`w-full h-12 px-5 rounded-xl border-2 bg-white outline-none focus:bg-[var(--cp-dough)] transition-all font-bold text-[15px] ${isTrocoValid ? 'border-[var(--cp-ink)]' : 'border-rose-400'}`}
+                              value={userData.troco}
+                              onChange={(e) => setUserData({...userData, troco: e.target.value})}
+                            />
+                            {!isTrocoValid && userData.troco && (
+                              <p className="text-[10px] font-bold text-rose-500 uppercase ml-1">O valor deve ser maior que R$ {formatPrice(cartTotal)}</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1757,9 +1828,9 @@ export default function ClientHome() {
               ) : (
                 <button 
                   onClick={onConfirmOrder}
-                  disabled={!userData.nome || !userData.telefone || (userData.entregaTipo === 'entrega' && (!userData.endereco || !userData.numero || !userData.bairro || !!deliveryError || isCalculatingDistance))}
+                  disabled={!userData.nome || !userData.telefone || (userData.entregaTipo === 'entrega' && (!userData.endereco || !userData.numero || !userData.bairro || !!deliveryError || isCalculatingDistance)) || !isTrocoValid}
                   className={`w-full h-[64px] rounded-2xl flex items-center justify-center gap-3 transition-all relative
-                    ${(userData.nome && userData.telefone && (userData.entregaTipo === 'retirada' || (userData.endereco && userData.numero && userData.bairro && !deliveryError && !isCalculatingDistance)))
+                    ${(userData.nome && userData.telefone && (userData.entregaTipo === 'retirada' || (userData.endereco && userData.numero && userData.bairro && !deliveryError && !isCalculatingDistance)) && isTrocoValid)
                       ? 'bg-[var(--cp-green)] text-white shadow-[0_6px_0_0_var(--cp-ink)] active:shadow-none active:translate-y-1 cursor-pointer' 
                       : 'bg-zinc-100 text-zinc-300 border-2 border-zinc-200 cursor-not-allowed shadow-none'
                     }`}
