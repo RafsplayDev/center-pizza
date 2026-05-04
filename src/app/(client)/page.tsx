@@ -1197,9 +1197,12 @@ const encodedMessage = encodeURIComponent(message);
             onClick={handleCloseProduct}
           />
           
-          <div className={`relative bg-[var(--cp-flour)] w-full h-screen flex flex-col transition-transform duration-300 ease-out ${modalVisible ? 'translate-y-0' : 'translate-y-full'}`}>
+          <div className={`relative bg-[var(--cp-flour)] w-full h-[100dvh] flex flex-col transition-transform duration-300 ease-out ${modalVisible ? 'translate-y-0' : 'translate-y-full'}`}>
             {/* Header / Top Bar Container */}
-            <div className="absolute top-0 left-0 right-0 h-20 z-40 pointer-events-none">
+            <div 
+              className="absolute top-0 left-0 right-0 z-40 pointer-events-none"
+              style={{ paddingTop: 'env(safe-area-inset-top)', height: 'calc(80px + env(safe-area-inset-top))' }}
+            >
               {/* Fundo Branco da Barra (aparece no scroll) */}
               <div className={`absolute inset-0 bg-white border-b-2 border-[var(--cp-line)] transition-all duration-500 shadow-lg ${productModalScrolled ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full'}`} />
               
