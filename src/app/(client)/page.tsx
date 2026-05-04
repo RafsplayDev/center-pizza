@@ -273,6 +273,12 @@ export default function ClientHome() {
   const [meioAMeioModes, setMeioAMeioModes] = useState<Record<string, 'unico' | 'meio'>>({});
   const [observation, setObservation] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
+  const [productModalScrolled, setProductModalScrolled] = useState(false);
+
+  const handleProductScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const threshold = window.innerHeight * 0.3; // Próximo da imagem sumir totalmente (32vh)
+    setProductModalScrolled(e.currentTarget.scrollTop > threshold);
+  };
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -429,11 +435,13 @@ export default function ClientHome() {
     
     setObservation('');
     setModalVisible(true);
+    setProductModalScrolled(false);
     document.body.style.overflow = 'hidden';
   };
 
   const handleCloseProduct = () => {
     setModalVisible(false);
+    setProductModalScrolled(false);
     setTimeout(() => {
       setSelectedProduct(null);
     }, 300);
@@ -1189,33 +1197,62 @@ const encodedMessage = encodeURIComponent(message);
           />
           
           <div className={`relative bg-[var(--cp-flour)] w-full h-screen flex flex-col transition-transform duration-300 ease-out ${modalVisible ? 'translate-y-0' : 'translate-y-full'}`}>
-            <div className="relative h-[32vh] flex-none overflow-hidden bg-[var(--cp-red)] flex items-center justify-center p-8">
-              <button 
-                onClick={handleCloseProduct}
-                className="absolute top-6 left-6 w-11 h-11 rounded-md bg-white text-[var(--cp-ink)] flex items-center justify-center shadow-[4px_4px_0_0_var(--cp-ink)] transition-all active:shadow-none active:translate-x-[2px] active:translate-y-[2px] z-30"
-              >
-                <ArrowLeftIcon size={24} />
-              </button>
+            {/* Header / Top Bar Container */}
+            <div className="absolute top-0 left-0 right-0 h-20 z-40 pointer-events-none">
+              {/* Fundo Branco da Barra (aparece no scroll) */}
+              <div className={`absolute inset-0 bg-white border-b-2 border-[var(--cp-line)] transition-all duration-500 shadow-lg ${productModalScrolled ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full'}`} />
+              
+              {/* Conteúdo da Barra */}
+              <div className="relative h-full grid grid-cols-[80px_1fr_80px] items-center px-4 pointer-events-auto">
+                {/* Lado Esquerdo: Botão */}
+                <div className="flex justify-start">
+                  <button 
+                    onClick={handleCloseProduct}
+                    className={`w-11 h-11 rounded-md flex items-center justify-center shadow-[4px_4px_0_0_var(--cp-ink)] transition-all active:shadow-none active:translate-x-[2px] active:translate-y-[2px] z-50
+                      ${productModalScrolled ? 'bg-[var(--cp-dough)] text-[var(--cp-ink)]' : 'bg-white text-[var(--cp-ink)]'}`}
+                  >
+                    <ArrowLeftIcon size={24} />
+                  </button>
+                </div>
 
-              <div className="absolute inset-0">
-                {selectedProduct.imagem_url ? (
-                  <Image src={selectedProduct.imagem_url} alt={selectedProduct.nome} fill className="object-cover" priority sizes="100vw" />
-                ) : (
-                  <div className="w-full h-full bg-[var(--cp-dough)] grid place-items-center text-[120px]">🍕</div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-transparent" />
-              </div>
+                {/* Centro: Título */}
+                <div className={`flex justify-center transition-all duration-500 ${productModalScrolled ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full'}`}>
+                  <h3 className="text-[18px] font-black leading-tight text-[var(--cp-ink)] m-0 text-center line-clamp-1" style={{ fontFamily: 'var(--font-display-alt)' }}>
+                    {selectedProduct.nome}
+                  </h3>
+                </div>
 
-              <div className="absolute bottom-8 left-0 right-0 text-center">
-                <span className="text-[18px] text-white/90 italic" style={{ fontFamily: 'var(--font-chalk)' }}>feito com paixão</span>
+                {/* Lado Direito: Espaçador (para manter o centro) */}
+                <div className="w-full" />
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar pt-10 px-8 pb-40">
-              <div className="mb-6">
-                <h3 className="text-[32px] font-black leading-[1.1] text-[var(--cp-ink)] mb-2" style={{ fontFamily: 'var(--font-display-alt)' }}>
-                  {selectedProduct.nome}
-                </h3>
+            <div 
+              onScroll={handleProductScroll}
+              className="flex-1 overflow-y-auto no-scrollbar pb-40"
+            >
+              {/* Imagem agora dentro do scroll */}
+              <div className="relative h-[32vh] overflow-hidden bg-[var(--cp-red)] flex items-center justify-center p-8">
+                <div className="absolute inset-0">
+                  {selectedProduct.imagem_url ? (
+                    <Image src={selectedProduct.imagem_url} alt={selectedProduct.nome} fill className="object-cover" priority sizes="100vw" />
+                  ) : (
+                    <div className="w-full h-full bg-[var(--cp-dough)] grid place-items-center text-[120px]">🍕</div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-transparent" />
+                </div>
+
+                <div className="absolute bottom-8 left-0 right-0 text-center">
+                  <span className="text-[18px] text-white/90 italic" style={{ fontFamily: 'var(--font-chalk)' }}>feito com paixão</span>
+                </div>
+              </div>
+
+              {/* Conteúdo */}
+              <div className="pt-10 px-8">
+                <div className="mb-6">
+                  <h3 className="text-[32px] font-black leading-[1.1] text-[var(--cp-ink)] mb-2" style={{ fontFamily: 'var(--font-display-alt)' }}>
+                    {selectedProduct.nome}
+                  </h3>
                 
                 {/* Tags reais do banco de dados */}
                 {selectedProduct.tags && selectedProduct.tags.length > 0 && (
@@ -1374,6 +1411,7 @@ const encodedMessage = encodeURIComponent(message);
                   value={observation}
                   onChange={(e) => setObservation(e.target.value)}
                 />
+              </div>
               </div>
             </div>
 

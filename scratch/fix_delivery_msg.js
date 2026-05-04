@@ -1,4 +1,6 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const fs = require('fs');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = require('path');
 
 const filePath = 'c:\\Users\\Rafael\\Desktop\\Center pizza\\center-pizza\\src\\app\\(client)\\page.tsx';
