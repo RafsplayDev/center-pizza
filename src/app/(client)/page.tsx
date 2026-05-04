@@ -20,6 +20,7 @@ const supabase = createBrowserClient(
 type DBComplementoOpcao = {
   id: string;
   nome: string;
+  descricao?: string;
   valor: number;
   posicao: number;
   ativo?: boolean;

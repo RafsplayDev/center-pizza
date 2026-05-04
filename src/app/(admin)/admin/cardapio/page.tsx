@@ -1240,11 +1240,37 @@ export default function CardapioPage() {
       'Tem certeza que deseja excluir este opcional? Esta ação não pode ser desfeita.',
       async () => {
         setConfirmLoading(true);
-        await supabase.from('complementos').delete().eq('id', id);
-        if (compProdutoId) fetchComplementos(compProdutoId);
-        setConfirmLoading(false);
-        setShowConfirm(false);
-        fetchData();
+        try {
+          // Se for um modelo, precisamos limpar as referências em produtos que o utilizam
+          // primeiro para evitar erros de integridade referencial
+          
+          // 1. Limpa referência de modelo nas opções clonadas
+          const { data: ops } = await supabase.from('complemento_opcoes').select('id').eq('complemento_id', id);
+          if (ops && ops.length > 0) {
+            const opIds = ops.map(o => o.id);
+            await supabase.from('complemento_opcoes').update({ modelo_opcao_origem_id: null }).in('modelo_opcao_origem_id', opIds);
+          }
+
+          // 2. Limpa referência de modelo nos complementos clonados
+          await supabase.from('complementos').update({ modelo_origem_id: null }).eq('modelo_origem_id', id);
+
+          // 3. Removemos as opções do próprio complemento/modelo
+          await supabase.from('complemento_opcoes').delete().eq('complemento_id', id);
+          
+          // 4. Removemos o complemento/modelo em si
+          const { error } = await supabase.from('complementos').delete().eq('id', id);
+          
+          if (error) throw error;
+
+          if (compProdutoId) fetchComplementos(compProdutoId);
+          fetchData();
+        } catch (err) {
+          console.error('Erro ao excluir opcional:', err);
+          alert('Erro ao excluir opcional. Verifique a conexão ou se há permissões suficientes.');
+        } finally {
+          setConfirmLoading(false);
+          setShowConfirm(false);
+        }
       }
     );
   };
