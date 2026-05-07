@@ -68,9 +68,13 @@ export default function PedidosPage() {
   }, []);
 
   const fetchPedidos = async () => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
     const { data, error } = await supabase
       .from('pedidos')
       .select('*')
+      .gte('criado_em', startOfDay)
       .order('criado_em', { ascending: false });
     
     if (data) {
@@ -90,6 +94,13 @@ export default function PedidosPage() {
         { event: '*', schema: 'public', table: 'pedidos' },
         (payload) => {
           console.log('Realtime Update:', payload);
+          
+          // Som de alerta para novos pedidos
+          if (payload.eventType === 'INSERT') {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+            audio.play().catch(e => console.log('Audio play failed:', e));
+          }
+          
           fetchPedidos();
         }
       )
@@ -171,6 +182,31 @@ export default function PedidosPage() {
       }
     });
     return acc;
+  }, [pedidos]);
+
+  const todayStats = useMemo(() => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const todayOrders = pedidos.filter(p => {
+      const orderDate = new Date(p.criado_em);
+      return orderDate >= startOfDay;
+    });
+
+    const activeOrders = todayOrders.filter(p => p.status !== 'cancelado');
+    const totalRevenue = activeOrders.reduce((acc, p) => acc + p.total, 0);
+    const deliveryCount = activeOrders.filter(p => p.tipo_entrega === 'entrega').length;
+    const pickupCount = activeOrders.filter(p => p.tipo_entrega === 'retirada').length;
+    
+    return {
+      totalCount: todayOrders.length,
+      activeCount: activeOrders.length,
+      revenue: totalRevenue,
+      pending: todayOrders.filter(p => p.status === 'pendente').length,
+      delivery: deliveryCount,
+      pickup: pickupCount,
+      avgTicket: activeOrders.length > 0 ? totalRevenue / activeOrders.length : 0
+    };
   }, [pedidos]);
 
   const filteredPedidos = pedidos.filter(p => p.status === activeTab);
@@ -377,9 +413,9 @@ export default function PedidosPage() {
             {/* Header */}
             <div className="flex justify-between items-center px-6 pt-5 pb-4 flex-none">
               <div className="flex items-center gap-3">
-                <span className="text-[20px] font-black" style={{ color: 'var(--cp-ink)' }}>#{selectedPedido.numero_pedido}</span>
-                <span className="text-[13px] font-medium text-[#8B7E74]">
-                  {getRelativeTime(selectedPedido.criado_em)}
+                <span className="text-[24px] font-black" style={{ color: 'var(--cp-ink)' }}>#{selectedPedido.numero_pedido}</span>
+                <span className="text-[13px] font-bold text-[#8B7E74] no-print">
+                  {new Date(selectedPedido.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
               <div className="flex items-center gap-2 no-print">
@@ -415,87 +451,37 @@ export default function PedidosPage() {
             <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-2">
               
               {/* Cards de Info */}
-              <div className="space-y-4 mb-6">
+              <div className="space-y-2 mb-6">
                 {/* Cliente */}
-                <div 
-                  className="flex items-center p-3.5 rounded-xl border-2 gap-3.5"
-                  style={{ backgroundColor: 'white', borderColor: 'var(--cp-ink)' }}
-                >
-                  <div 
-                    className="w-11 h-11 rounded-lg border-2 flex items-center justify-center flex-none"
-                    style={{ backgroundColor: 'var(--cp-dough)', borderColor: 'var(--cp-ink)', boxShadow: '0 2px 0 0 var(--cp-ink)', color: 'var(--cp-ink)' }}
-                  >
-                    <User size={20} strokeWidth={2.5} />
+                <div className="flex flex-col py-2 border-b border-dashed border-[#EBE3DB]">
+                  <span className="text-[12px] font-black uppercase text-[#8B7E74]">Cliente</span>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-[16px] font-black" style={{ color: 'var(--cp-ink)' }}>{selectedPedido.cliente_nome}</span>
+                    <span className="text-[13px] font-bold" style={{ color: 'var(--cp-ink)' }}>{selectedPedido.cliente_telefone}</span>
                   </div>
-                  <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <span className="text-[14px] font-black truncate pr-2" style={{ color: 'var(--cp-ink)' }}>{selectedPedido.cliente_nome}</span>
-                    <span className="text-[11px] font-medium text-[#8B7E74] leading-tight mt-0.5">
-                      {new Date(selectedPedido.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às {new Date(selectedPedido.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-end justify-center pr-1">
-                    <span className="text-[12px] font-bold" style={{ color: 'var(--cp-ink)' }}>{selectedPedido.cliente_telefone}</span>
-                  </div>
-                  <a 
-                    href={`https://wa.me/55${selectedPedido.cliente_telefone.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 flex items-center justify-center rounded-lg border-2 cursor-pointer hover:brightness-95 active:translate-y-[2px] active:shadow-none transition-all flex-none no-print"
-                    style={{ backgroundColor: '#25D366', borderColor: 'var(--cp-ink)', boxShadow: '0 2px 0 0 var(--cp-ink)', color: 'white' }}
-                  >
-                    <MessageCircle size={18} strokeWidth={2.5} />
-                  </a>
+                  <span className="text-[11px] font-bold text-[#8B7E74] mt-1">
+                    Data: {new Date(selectedPedido.criado_em).toLocaleDateString('pt-BR')} às {new Date(selectedPedido.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
 
                 {/* Pagamento */}
-                <div 
-                  className="flex items-center p-3.5 rounded-xl border-2 gap-3.5"
-                  style={{ backgroundColor: 'white', borderColor: 'var(--cp-ink)' }}
-                >
-                  <div 
-                    className="w-11 h-11 rounded-lg border-2 flex items-center justify-center flex-none"
-                    style={{ backgroundColor: 'var(--cp-dough)', borderColor: 'var(--cp-ink)', boxShadow: '0 2px 0 0 var(--cp-ink)', color: 'var(--cp-ink)' }}
-                  >
-                    {selectedPedido.metodo_pagamento === 'dinheiro' ? <Banknote size={20} strokeWidth={2.5} /> : <CreditCard size={20} strokeWidth={2.5} />}
-                  </div>
-                  <div className="flex-1 flex flex-col justify-center">
-                    <span className="text-[14px] font-black capitalize leading-tight" style={{ color: 'var(--cp-ink)' }}>{selectedPedido.metodo_pagamento}</span>
-                    {selectedPedido.metodo_pagamento === 'dinheiro' && selectedPedido.troco_para && (
-                      <span className="text-[12px] font-medium text-[#6B5D56] mt-0.5">Troco para: R$ {formatPrice(selectedPedido.troco_para)}</span>
-                    )}
-                  </div>
+                <div className="flex flex-col py-2 border-b border-dashed border-[#EBE3DB]">
+                  <span className="text-[12px] font-black uppercase text-[#8B7E74]">Pagamento</span>
+                  <span className="text-[14px] font-black capitalize" style={{ color: 'var(--cp-ink)' }}>{selectedPedido.metodo_pagamento}</span>
+                  {selectedPedido.metodo_pagamento === 'dinheiro' && selectedPedido.troco_para && (
+                    <span className="text-[12px] font-bold text-[#1F1B1A] mt-0.5">Troco para: R$ {formatPrice(selectedPedido.troco_para)}</span>
+                  )}
                 </div>
 
                 {/* Entrega/Endereço */}
-                <div 
-                  className="flex items-center p-3.5 rounded-xl border-2 gap-3.5"
-                  style={{ backgroundColor: 'white', borderColor: 'var(--cp-ink)' }}
-                >
-                  <div 
-                    className="w-11 h-11 rounded-lg border-2 flex items-center justify-center flex-none"
-                    style={{ backgroundColor: 'var(--cp-dough)', borderColor: 'var(--cp-ink)', boxShadow: '0 2px 0 0 var(--cp-ink)', color: 'var(--cp-ink)' }}
-                  >
-                    {selectedPedido.tipo_entrega === 'entrega' ? <Bike size={23} strokeWidth={2.5} /> : <Package size={20} strokeWidth={2.5} />}
-                  </div>
-                  <div className="flex-1 flex flex-col justify-center min-w-0 pr-2">
-                    <span className="text-[14px] font-black capitalize leading-none mb-1" style={{ color: 'var(--cp-ink)' }}>
-                      {selectedPedido.tipo_entrega}
-                    </span>
-                    <span className="text-[11px] font-medium text-[#8B7E74] leading-tight line-clamp-2">
-                      {selectedPedido.tipo_entrega === 'entrega' ? selectedPedido.endereco_entrega : 'O cliente virá retirar no balcão'}
-                    </span>
-                  </div>
-                  {selectedPedido.tipo_entrega === 'entrega' && selectedPedido.endereco_entrega && (
-                    <a 
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedPedido.endereco_entrega)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-10 h-10 flex items-center justify-center rounded-lg border-2 cursor-pointer hover:brightness-95 active:translate-y-[2px] active:shadow-none transition-all flex-none no-print"
-                      style={{ backgroundColor: 'var(--cp-dough)', borderColor: 'var(--cp-ink)', boxShadow: '0 2px 0 0 var(--cp-ink)', color: 'var(--cp-ink)' }}
-                    >
-                      <Map size={18} strokeWidth={2.5} />
-                    </a>
-                  )}
+                <div className="flex flex-col py-2 border-b border-dashed border-[#EBE3DB]">
+                  <span className="text-[12px] font-black uppercase text-[#8B7E74]">Entrega</span>
+                  <span className="text-[14px] font-black capitalize mb-1" style={{ color: 'var(--cp-ink)' }}>
+                    {selectedPedido.tipo_entrega}
+                  </span>
+                  <span className="text-[13px] font-bold text-[#1F1B1A] leading-tight">
+                    {selectedPedido.tipo_entrega === 'entrega' ? selectedPedido.endereco_entrega : 'RETIRADA NO BALCÃO'}
+                  </span>
                 </div>
               </div>
 
@@ -531,10 +517,8 @@ export default function PedidosPage() {
                 ))}
 
                 {/* Taxa de Entrega */}
-                <div className="py-3.5 flex justify-between items-center border-b border-dashed border-[#EBE3DB]">
-                  <div className="flex items-center gap-2 text-[13px] font-bold text-[#1F1B1A]">
-                    <Bike size={16} strokeWidth={2.5} /> Taxa de entrega
-                  </div>
+                <div className="py-2 flex justify-between items-center border-b border-dashed border-[#EBE3DB]">
+                  <span className="text-[13px] font-bold text-[#1F1B1A]">Taxa de entrega</span>
                   <span className="text-[13px] font-bold text-[#1F1B1A]">
                     {selectedPedido.taxa_entrega > 0 ? `+ R$ ${formatPrice(selectedPedido.taxa_entrega)}` : 'Grátis'}
                   </span>

@@ -101,6 +101,8 @@ export default function AdminSidebar() {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(true);
   const [activeItems, setActiveItems] = useState<number>(0);
+  const [orderCount, setOrderCount] = useState<number>(0);
+  const [totalRevenue, setTotalRevenue] = useState<number>(0);
   const [isStoreOpen, setIsStoreOpen] = useState<boolean>(true);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -122,7 +124,22 @@ export default function AdminSidebar() {
       
       if (count !== null) setActiveItems(count);
 
-      // 2. Fetch store status
+      // 2. Fetch daily orders count and revenue
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      
+      const { data: orders } = await supabase
+        .from('pedidos')
+        .select('total, status')
+        .gte('criado_em', startOfDay);
+      
+      if (orders) {
+        const active = orders.filter(o => o.status !== 'cancelado');
+        setOrderCount(active.length);
+        setTotalRevenue(active.reduce((acc, o) => acc + (o.total || 0), 0));
+      }
+
+      // 3. Fetch store status
       const { data: config } = await supabase
         .from('configuracoes')
         .select('aberta')
@@ -134,6 +151,14 @@ export default function AdminSidebar() {
 
     fetchData();
     
+    // Subscribe para atualizações em tempo real de pedidos
+    const pedidosChannel = supabase
+      .channel('sidebar_pedidos')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
     // Ouvir evento de mudança global (vinda da TopBar, por exemplo)
     window.addEventListener('store-status-changed', fetchData);
     
@@ -141,6 +166,7 @@ export default function AdminSidebar() {
     const interval = setInterval(fetchData, 60000);
     return () => {
       clearInterval(interval);
+      supabase.removeChannel(pedidosChannel);
       window.removeEventListener('store-status-changed', fetchData);
     };
   }, []);
@@ -181,6 +207,7 @@ export default function AdminSidebar() {
     ...section,
     items: section.items.map(item => {
       if (item.label === 'Cardápio') return { ...item, badge: activeItems };
+      if (item.label === 'Pedidos') return { ...item, badge: orderCount };
       return item;
     })
   }));
@@ -370,11 +397,13 @@ export default function AdminSidebar() {
             <div className="flex flex-col gap-1 mt-1">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold" style={{ color: dark.text }}>Pedidos hoje</span>
-                <span className="text-[10px] font-black" style={{ color: dark.textActive }}>24</span>
+                <span className="text-[10px] font-black" style={{ color: dark.textActive }}>{orderCount}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold" style={{ color: dark.text }}>Faturamento</span>
-                <span className="text-[10px] font-black" style={{ color: 'var(--cp-green)' }}>R$ 1.420,50</span>
+                <span className="text-[10px] font-black" style={{ color: 'var(--cp-green)' }}>
+                  {totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
               </div>
             </div>
           </div>

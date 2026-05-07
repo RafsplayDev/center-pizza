@@ -2192,7 +2192,7 @@ export default function ClientHome() {
       </div>
 
       {/* Bottom Bar de Navegação */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-[var(--cp-line)] z-[120] safe-bottom shadow-[0_-4px_30px_rgba(0,0,0,0.05)] no-print">
+      <div className={`fixed bottom-0 left-0 right-0 bg-white border-t-2 border-[var(--cp-line)] z-[120] safe-bottom shadow-[0_-4px_30px_rgba(0,0,0,0.05)] no-print transition-all duration-500 ease-in-out ${modalVisible || isCartOpen ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}>
         <div className="flex h-[52px] max-w-[500px] mx-auto">
           {/* Cardápio */}
           <button 
@@ -2239,7 +2239,7 @@ export default function ClientHome() {
           {/* Barra de Carrinho Estilo Pill Premium */}
           {totalCartItems > 0 && (
             <div className={`fixed bottom-[84px] left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-[400px] z-[130] transition-all duration-500 ease-out
-              ${isCartOpen ? 'opacity-0 translate-y-10 pointer-events-none' : 'opacity-100 translate-y-0 animate-in slide-in-from-bottom-10'}
+              ${isCartOpen || modalVisible ? 'opacity-0 translate-y-10 pointer-events-none' : 'opacity-100 translate-y-0 animate-in slide-in-from-bottom-10'}
             `}>
               <button 
                 onClick={() => setIsCartOpen(true)}

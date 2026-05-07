@@ -36,6 +36,8 @@ function getStatusStyle(status: string): StatusStyle {
       return { bg: 'rgba(217,136,65,0.1)', color: 'var(--cp-crust-deep)', dot: 'var(--cp-crust)' };
     case 'Saiu p/ Entrega':
       return { bg: 'rgba(44,110,155,0.08)', color: 'var(--cp-info)', dot: 'var(--cp-info)' };
+    case 'Cancelado':
+      return { bg: 'rgba(227,6,19,0.08)', color: 'var(--cp-red)', dot: 'var(--cp-red)' };
     default:
       return { bg: 'rgba(31,27,26,0.06)', color: 'var(--cp-ink-muted)', dot: 'var(--cp-ink-faint)' };
   }

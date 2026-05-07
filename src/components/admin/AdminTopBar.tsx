@@ -10,6 +10,7 @@ import { createBrowserClient } from '@supabase/ssr';
 // =============================================================
 
 import { SearchIcon, BellIcon, PrinterIcon, PlusIcon, LogoutIcon } from './icons';
+import { ShoppingBag, DollarSign, TrendingUp, BarChart3, AlertCircle, Package, Bike } from 'lucide-react';
 import Button from '@/components/ui/Button';
 
 const supabase = createBrowserClient(
@@ -44,6 +45,7 @@ export default function AdminTopBar() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeCount, setActiveCount] = useState<number>(0);
   const [inactiveCount, setInactiveCount] = useState<number>(0);
+  const [orderStats, setOrderStats] = useState({ count: 0, revenue: 0, pending: 0 });
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -72,6 +74,23 @@ export default function AdminTopBar() {
     if (config) setStoreOpen(config.aberta);
   }
 
+  async function fetchOrderStats() {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    
+    const { data } = await supabase
+      .from('pedidos')
+      .select('total, status')
+      .gte('criado_em', startOfDay);
+    
+    if (data) {
+      const active = data.filter(p => p.status !== 'cancelado');
+      const revenue = active.reduce((acc, p) => acc + p.total, 0);
+      const pending = data.filter(p => p.status === 'pendente').length;
+      setOrderStats({ count: active.length, revenue, pending });
+    }
+  }
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUserEmail(data.user?.email || null);
@@ -79,6 +98,15 @@ export default function AdminTopBar() {
 
     fetchCounts();
     fetchStoreStatus();
+    fetchOrderStats();
+
+    // Subscribe para atualizações em tempo real de pedidos
+    const pedidosChannel = supabase
+      .channel('topbar_pedidos')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+        fetchOrderStats();
+      })
+      .subscribe();
 
     // Ouvir evento de mudança de status para atualizar contadores instantaneamente
     window.addEventListener('product-status-changed', fetchCounts);
@@ -87,10 +115,12 @@ export default function AdminTopBar() {
     const interval = setInterval(() => {
       fetchCounts();
       fetchStoreStatus();
+      fetchOrderStats();
     }, 60000);
 
     return () => {
       clearInterval(interval);
+      supabase.removeChannel(pedidosChannel);
       window.removeEventListener('product-status-changed', fetchCounts);
       window.removeEventListener('store-status-changed', fetchStoreStatus);
     };
@@ -136,35 +166,79 @@ export default function AdminTopBar() {
           </span>
         </div>
 
-        {/* Status dos Produtos (Funciona como Filtro) */}
-        <div className="flex items-center gap-3 flex-1 max-w-[400px] ml-4">
-           <button 
-             onClick={() => router.push(pathname + (filter === 'ativos' ? '' : '?filter=ativos'))}
-             className={`flex items-center gap-2 border-2 cursor-pointer p-1.5 px-3 rounded-xl transition-all group ${filter === 'ativos' ? 'bg-[var(--cp-green)] border-[var(--cp-green)]' : 'bg-transparent border-transparent hover:bg-white/60'}`}
-           >
-              <div className={`w-2 h-2 rounded-full animate-pulse ${filter === 'ativos' ? 'bg-white' : 'bg-[var(--cp-green)]'}`} />
-              <div className="flex flex-col items-start leading-none">
-                <span className={`text-[11px] font-black uppercase tracking-wide transition-colors ${filter === 'ativos' ? 'text-white' : 'text-[var(--cp-ink)]'}`}>
-                  {activeCount} Ativos
-                </span>
-                <span className={`text-[8px] font-bold uppercase tracking-tighter ${filter === 'ativos' ? 'text-white/80' : 'text-[var(--cp-ink-muted)]'}`}>No Cardápio</span>
-              </div>
-           </button>
+        {/* Área Contextual Dinâmica */}
+        <div className="flex items-center gap-6 flex-1 max-w-[600px] ml-8">
            
-           <div className="w-[1px] h-6 bg-[var(--cp-line)] opacity-50" />
+           {/* Estatísticas de Pedidos (Apenas em /admin/pedidos) */}
+           {pathname === '/admin/pedidos' && (
+             <>
+               <div className="flex items-center gap-2">
+                 <ShoppingBag className="text-[var(--cp-ink)] opacity-40" size={18} />
+                 <div className="flex flex-col">
+                   <div className="flex items-baseline gap-1.5">
+                     <span className="text-[17px] font-black" style={{ color: 'var(--cp-ink)', fontFamily: 'var(--font-display-alt)' }}>{orderStats.count}</span>
+                     <span className="text-[10px] font-black uppercase text-[#8B7E74] tracking-wider">Pedidos</span>
+                   </div>
+                   {orderStats.pending > 0 && (
+                     <div className="flex items-center gap-1">
+                       <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                       <span className="text-[9px] font-black text-orange-600 uppercase">
+                         {orderStats.pending} Pendentes
+                       </span>
+                     </div>
+                   )}
+                 </div>
+               </div>
 
-           <button 
-             onClick={() => router.push(pathname + (filter === 'inativos' ? '' : '?filter=inativos'))}
-             className={`flex items-center gap-2 border-2 cursor-pointer p-1.5 px-3 rounded-xl transition-all group ${filter === 'inativos' ? 'bg-[var(--cp-red)] border-[var(--cp-red)]' : 'bg-transparent border-transparent hover:bg-white/60'}`}
-           >
-              <div className={`w-2 h-2 rounded-full ${filter === 'inativos' ? 'bg-white' : 'bg-[var(--cp-red)]'}`} />
-              <div className="flex flex-col items-start leading-none">
-                <span className={`text-[11px] font-black uppercase tracking-wide transition-colors ${filter === 'inativos' ? 'text-white' : 'text-[var(--cp-ink)]'}`}>
-                  {inactiveCount} Inativos
-                </span>
-                <span className={`text-[8px] font-bold uppercase tracking-tighter ${filter === 'inativos' ? 'text-white/80' : 'text-[var(--cp-ink-muted)]'}`}>Ocultos</span>
-              </div>
-           </button>
+               <div className="w-[1px] h-6 bg-[var(--cp-line)] opacity-50" />
+
+               <div className="flex items-center gap-2">
+                 <DollarSign className="text-[var(--cp-ink)] opacity-40" size={18} />
+                 <div className="flex flex-col">
+                   <div className="flex items-baseline gap-1">
+                     <span className="text-[10px] font-black text-[var(--cp-red)]">R$</span>
+                     <span className="text-[17px] font-black" style={{ color: 'var(--cp-ink)', fontFamily: 'var(--font-display-alt)' }}>
+                       {orderStats.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                     </span>
+                   </div>
+                   <span className="text-[10px] font-black uppercase text-[#8B7E74] tracking-wider">Vendas</span>
+                 </div>
+               </div>
+             </>
+           )}
+
+           {/* Estatísticas de Cardápio (Apenas em /admin/cardapio) */}
+           {pathname === '/admin/cardapio' && (
+             <>
+                <button 
+                  onClick={() => router.push(pathname + (filter === 'ativos' ? '' : '?filter=ativos'))}
+                  className={`flex items-center gap-2 border-2 cursor-pointer p-1.5 px-3 rounded-xl transition-all group ${filter === 'ativos' ? 'bg-[var(--cp-green)] border-[var(--cp-green)]' : 'bg-transparent border-transparent hover:bg-white/60'}`}
+                >
+                    <div className={`w-2 h-2 rounded-full animate-pulse ${filter === 'ativos' ? 'bg-white' : 'bg-[var(--cp-green)]'}`} />
+                    <div className="flex flex-col items-start leading-none">
+                      <span className={`text-[11px] font-black uppercase tracking-wide transition-colors ${filter === 'ativos' ? 'text-white' : 'text-[var(--cp-ink)]'}`}>
+                        {activeCount} Ativos
+                      </span>
+                      <span className={`text-[8px] font-bold uppercase tracking-tighter ${filter === 'ativos' ? 'text-white/80' : 'text-[var(--cp-ink-muted)]'}`}>No Cardápio</span>
+                    </div>
+                </button>
+                
+                <div className="w-[1px] h-6 bg-[var(--cp-line)] opacity-50" />
+
+                <button 
+                  onClick={() => router.push(pathname + (filter === 'inativos' ? '' : '?filter=inativos'))}
+                  className={`flex items-center gap-2 border-2 cursor-pointer p-1.5 px-3 rounded-xl transition-all group ${filter === 'inativos' ? 'bg-[var(--cp-red)] border-[var(--cp-red)]' : 'bg-transparent border-transparent hover:bg-white/60'}`}
+                >
+                    <div className={`w-2 h-2 rounded-full ${filter === 'inativos' ? 'bg-white' : 'bg-[var(--cp-red)]'}`} />
+                    <div className="flex flex-col items-start leading-none">
+                      <span className={`text-[11px] font-black uppercase tracking-wide transition-colors ${filter === 'inativos' ? 'text-white' : 'text-[var(--cp-ink)]'}`}>
+                        {inactiveCount} Inativos
+                      </span>
+                      <span className={`text-[8px] font-bold uppercase tracking-tighter ${filter === 'inativos' ? 'text-white/80' : 'text-[var(--cp-ink-muted)]'}`}>Ocultos</span>
+                    </div>
+                </button>
+             </>
+           )}
 
         </div>
 
