@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { createBrowserClient } from '@supabase/ssr';
-import { SearchIcon, PlusIcon, MinusIcon, XIcon, ChevronRightIcon, InfoIcon, ShoppingBagIcon, ArrowLeftIcon, StarIcon, CheckIcon, AlertCircle } from 'lucide-react';
+import { SearchIcon, PlusIcon, MinusIcon, XIcon, ChevronRightIcon, InfoIcon, ShoppingBagIcon, ArrowLeftIcon, StarIcon, CheckIcon, AlertCircle, Clock, ChefHat, Bike, CheckCircle2, ClipboardList, BookOpen, ShoppingBag, User } from 'lucide-react';
 
 // -------------------------------------------------------------
 // Supabase client
@@ -225,6 +225,32 @@ function ProductTag({ label, type = 'default' }: { label: string; type?: 'defaul
 }
 
 // -------------------------------------------------------------
+// Helpers de Status
+// -------------------------------------------------------------
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case 'pendente': return 'Aguardando confirmação';
+    case 'aceito': return 'Pedido confirmado';
+    case 'pronto': return 'Ficou pronto!';
+    case 'entrega': return 'Saiu para entrega';
+    case 'concluido': return 'Entregue com sucesso';
+    case 'cancelado': return 'Infelizmente foi cancelado';
+    default: return status;
+  }
+};
+
+const getStatusStep = (status: string) => {
+  switch (status) {
+    case 'pendente': return 1;
+    case 'aceito': return 2;
+    case 'pronto': return 3;
+    case 'entrega': return 4;
+    case 'concluido': return 5;
+    default: return 0;
+  }
+};
+
+// -------------------------------------------------------------
 // Main Component
 // -------------------------------------------------------------
 export default function ClientHome() {
@@ -275,6 +301,62 @@ export default function ClientHome() {
   const [observation, setObservation] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [productModalScrolled, setProductModalScrolled] = useState(false);
+  
+  // Estados de Rastreamento de Pedido
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [activeOrder, setActiveOrder] = useState<any>(null);
+  const [activeView, setActiveView] = useState<'menu' | 'status' | 'profile'>('menu');
+
+  useEffect(() => {
+    const savedOrderId = localStorage.getItem('cp_active_order_id');
+    if (savedOrderId) {
+      setActiveOrderId(savedOrderId);
+    }
+
+    const handleStorageChange = () => {
+      const id = localStorage.getItem('cp_active_order_id');
+      setActiveOrderId(id);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  useEffect(() => {
+    if (!activeOrderId) {
+      setActiveOrder(null);
+      return;
+    }
+
+    const fetchOrder = async () => {
+      const { data } = await supabase
+        .from('pedidos')
+        .select('*')
+        .eq('id', activeOrderId)
+        .single();
+      
+      if (data) {
+        setActiveOrder(data);
+      }
+    };
+
+    fetchOrder();
+
+    const channel = supabase
+      .channel(`order_status_${activeOrderId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: `id=eq.${activeOrderId}` },
+        (payload) => {
+          setActiveOrder(payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeOrderId]);
 
   const handleProductScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const threshold = window.innerHeight * 0.3; // Próximo da imagem sumir totalmente (32vh)
@@ -717,7 +799,7 @@ export default function ClientHome() {
 
       // Busca estruturada (mais precisa quando bate). Nominatim não tem campo "neighborhood"
       // na busca estruturada, então o bairro só entra nas queries free-form (q=).
-      let structuredQuery = `https://nominatim.openstreetmap.org/search?format=json&limit=1`;
+      let structuredQuery = `https://nominatim.openstreetmap.org/search?format=json&limit=1&email=centerpizzadigital@gmail.com`;
       if (userData.cep) structuredQuery += `&postalcode=${userData.cep.replace(/\D/g, '')}`;
       let structuredQueryWithNum = structuredQuery + `&street=${encodeURIComponent(`${userData.numero} ${userData.endereco}`)}`;
       let structuredQueryWithoutNum = structuredQuery + `&street=${encodeURIComponent(userData.endereco)}`;
@@ -734,7 +816,7 @@ export default function ClientHome() {
       structuredQueryWithoutNum += `&country=Brazil`;
 
       const buildFreeForm = (parts: string[]) =>
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(parts.filter(Boolean).join(', '))}`;
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&email=centerpizzadigital@gmail.com&q=${encodeURIComponent(parts.filter(Boolean).join(', '))}`;
 
       // Ordem da mais específica (rua + número + bairro) para a mais ampla (só bairro)
       const queries = [
@@ -756,6 +838,10 @@ export default function ClientHome() {
             break;
           }
         } catch (e) {
+          if (e instanceof TypeError && (e.message === 'Failed to fetch' || e.message.includes('NetworkError'))) {
+            console.warn('Serviço de geolocalização indisponível ou bloqueado por AdBlock/DNS.');
+            break;
+          }
           console.error(`Erro na query "${queries[i]}":`, e);
         }
 
@@ -921,7 +1007,7 @@ export default function ClientHome() {
     });
   };
 
-  const handleSendOrder = () => {
+  const handleSendOrder = async () => {
     const phone = '5516981886165';
     
     let message = `*NOVO PEDIDO - CENTER PIZZA*\n`;
@@ -979,10 +1065,44 @@ export default function ClientHome() {
       referencia: userData.referencia,
       semTroco: userData.semTroco
     }));
-const encodedMessage = encodeURIComponent(message);
+
+    // Salvar pedido no Supabase
+    try {
+      const { data: newOrder, error } = await supabase.from('pedidos').insert({
+        cliente_nome: userData.nome,
+        cliente_telefone: userData.telefone,
+        tipo_entrega: userData.entregaTipo,
+        endereco_entrega: userData.entregaTipo === 'entrega' 
+          ? `${userData.endereco}, ${userData.numero} - ${userData.bairro}${userData.referencia ? ` (Ref: ${userData.referencia})` : ''}`
+          : '',
+        taxa_entrega: userData.deliveryFee,
+        subtotal: cartSubtotal,
+        total: cartTotal,
+        metodo_pagamento: userData.pagamento,
+        troco_para: userData.pagamento === 'dinheiro' && !userData.semTroco ? parseFloat(userData.troco.replace(',', '.')) : null,
+        status: 'pendente',
+        itens: cartItems
+      }).select().single();
+
+      if (error) {
+        console.error('Erro ao salvar pedido:', error);
+      } else if (newOrder) {
+        // Salvar ID do pedido ativo para rastreamento
+        localStorage.setItem('cp_active_order_id', newOrder.id);
+        setActiveOrderId(newOrder.id);
+        setActiveView('status');
+        // Despachar evento para atualizar o estado global se necessário
+        window.dispatchEvent(new Event('storage'));
+      }
+    } catch (err) {
+      console.error('Exceção ao salvar pedido:', err);
+    }
+
+    const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
     
     // Reset states after sending
+    setCartItems([]);
     setIsCartOpen(false);
     setCheckoutStep('cart');
     setShowPixModal(false);
@@ -1001,7 +1121,7 @@ const encodedMessage = encodeURIComponent(message);
   }
 
   return (
-    <main className="min-h-screen bg-[var(--bg-1)] pb-28 font-sans text-[var(--cp-ink)]">
+    <main className="min-h-screen bg-[var(--bg-1)] font-sans text-[var(--cp-ink)]">
       {/* Banner de Loja Fechada */}
       {!isStoreOpen && (
         <div className="bg-[var(--cp-red)] text-white py-3 px-6 text-center sticky top-0 z-[100] shadow-lg flex items-center justify-center gap-3">
@@ -1009,9 +1129,13 @@ const encodedMessage = encodeURIComponent(message);
           <span className="text-[12px] font-black uppercase tracking-[0.2em]">Estamos fechados no momento</span>
         </div>
       )}
+
       {/* Main Content Area */}
-      <div className="px-6 py-6 flex flex-col gap-10">
-        {filteredCategorias.map((cat, catIdx) => (
+      <div className="pb-32">
+        {activeView === 'menu' ? (
+          <>
+            <div className="px-6 py-6 flex flex-col gap-10">
+            {filteredCategorias.map((cat, catIdx) => (
           <section key={cat.id} id={cat.id} className="scroll-mt-48">
             <div className="flex items-baseline gap-3 mb-6">
               <h2 className="text-[28px] font-black m-0" style={{ fontFamily: 'var(--font-display-alt)' }}>
@@ -1450,30 +1574,6 @@ const encodedMessage = encodeURIComponent(message);
           </div>
         </div>
       )}
-      
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t-2 border-[var(--cp-line)] flex items-center justify-between z-50 px-6 safe-bottom shadow-2xl">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-[var(--cp-ink)] flex items-center justify-center relative shadow-[0_4px_0_0_var(--cp-red)]">
-             <ShoppingBagIcon size={20} className="text-white" />
-             {totalCartItems > 0 && (
-               <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[var(--cp-red)] text-white text-[11px] font-black flex items-center justify-center border-2 border-white animate-bounce">
-                {totalCartItems}
-               </span>
-             )}
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black uppercase tracking-wider opacity-40 leading-none mb-1">Seu Pedido</span>
-            <span className="text-sm font-black leading-none">{totalCartItems > 0 ? 'Pronto para finalizar' : 'Carrinho vazio'}</span>
-          </div>
-        </div>
-        <button 
-          onClick={() => setIsCartOpen(true)}
-          className="h-12 px-6 bg-[var(--cp-ink)] text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.1em] flex items-center gap-2 shadow-[0_4px_0_0_var(--cp-red)] active:shadow-none active:translate-y-1 transition-all"
-        >
-          Ver Carrinho
-          <ChevronRightIcon size={14} />
-        </button>
-      </div>
 
       {/* Cart Drawer */}
       <div className={`fixed inset-0 z-[110] flex flex-col justify-end transition-opacity duration-300 ${isCartOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
@@ -1970,10 +2070,208 @@ const encodedMessage = encodeURIComponent(message);
         </div>
       </div>
 
+          </>
+        ) : activeView === 'status' ? (
+          /* Visualização de Status do Pedido */
+          <div className="px-6 py-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {!activeOrderId ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center opacity-40">
+                <div className="w-20 h-20 bg-[var(--cp-dough)] rounded-full flex items-center justify-center mb-6 border-4 border-dashed border-[var(--cp-ink)]">
+                  <ClipboardList size={32} />
+                </div>
+                <h3 className="text-[20px] font-black uppercase tracking-widest mb-2">Nenhum pedido ativo</h3>
+                <p className="text-[14px] font-medium max-w-[240px]">Você ainda não fez nenhum pedido nesta sessão.</p>
+                <button 
+                  onClick={() => setActiveView('menu')}
+                  className="mt-8 px-8 py-3 bg-[var(--cp-ink)] text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-[4px_4px_0_0_var(--cp-red)]"
+                >
+                  Voltar ao Cardápio
+                </button>
+              </div>
+            ) : !activeOrder ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-12 h-12 border-4 border-[var(--cp-red)] border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-[14px] font-black uppercase tracking-widest opacity-40">Buscando seu pedido...</p>
+              </div>
+            ) : (
+              <div className="space-y-8 max-w-[500px] mx-auto">
+                <div className="text-center">
+                  <h2 className="text-[32px] font-black mb-1" style={{ fontFamily: 'var(--font-display-alt)' }}>Pedido #{activeOrder.numero_pedido}</h2>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[var(--cp-green)] animate-pulse" />
+                    <span className="text-[12px] font-bold uppercase tracking-widest opacity-60">Acompanhamento em Tempo Real</span>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-[32px] border-4 border-[var(--cp-ink)] p-8 shadow-[8px_8px_0_0_var(--cp-red)] relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4">
+                    <div className="w-12 h-12 bg-[var(--cp-dough)] rounded-2xl flex items-center justify-center border-2 border-[var(--cp-ink)] shadow-[2px_2px_0_0_var(--cp-ink)]">
+                      {activeOrder.status === 'pendente' && <Clock size={24} className="text-[var(--cp-ink)]" />}
+                      {activeOrder.status === 'aceito' && <ChefHat size={24} className="text-[var(--cp-red)]" />}
+                      {activeOrder.status === 'pronto' && <CheckIcon size={24} className="text-[var(--cp-green)]" />}
+                      {activeOrder.status === 'entrega' && <Bike size={24} className="text-[var(--cp-red)]" />}
+                      {activeOrder.status === 'concluido' && <CheckCircle2 size={24} className="text-[var(--cp-green)]" />}
+                      {activeOrder.status === 'cancelado' && <AlertCircle size={24} className="text-rose-500" />}
+                    </div>
+                  </div>
+
+                  <div className="mb-8">
+                    <span className="text-[11px] font-black uppercase tracking-[0.2em] opacity-40 block mb-2">Status Atual</span>
+                    <h3 className="text-[24px] font-black leading-tight" style={{ color: activeOrder.status === 'cancelado' ? '#f43f5e' : 'var(--cp-ink)' }}>
+                      {getStatusLabel(activeOrder.status)}
+                    </h3>
+                    {activeOrder.justificativa_cancelamento && (
+                      <div className="mt-4 p-4 bg-rose-50 border-2 border-rose-200 rounded-xl text-rose-800 text-[13px] font-medium italic">
+                        "{activeOrder.justificativa_cancelamento}"
+                      </div>
+                    )}
+                  </div>
+
+                  {activeOrder.status !== 'cancelado' && (
+                    <div className="relative">
+                      <div className="absolute left-[15px] top-0 bottom-0 w-1 bg-[var(--cp-dough)] rounded-full" />
+                      <div 
+                        className="absolute left-[15px] top-0 w-1 bg-[var(--cp-green)] rounded-full transition-all duration-1000 ease-in-out" 
+                        style={{ height: `${((getStatusStep(activeOrder.status) - 1) / 4) * 100}%` }}
+                      />
+                      
+                      <div className="space-y-8 relative">
+                        {[
+                          { id: 'pendente', label: 'Recebido', icon: Clock },
+                          { id: 'aceito', label: 'Em Preparo', icon: ChefHat },
+                          { id: 'pronto', label: 'Pronto', icon: CheckIcon },
+                          { id: 'entrega', label: 'Saiu para Entrega', icon: Bike },
+                          { id: 'concluido', label: 'Finalizado', icon: CheckCircle2 }
+                        ].map((step, idx) => {
+                          const isPast = getStatusStep(activeOrder.status) > (idx + 1);
+                          const isCurrent = getStatusStep(activeOrder.status) === (idx + 1);
+                          return (
+                            <div key={step.id} className="flex items-center gap-6 group">
+                              <div className={`w-8 h-8 rounded-full border-2 z-10 flex items-center justify-center transition-all duration-500 ${isPast ? 'bg-[var(--cp-green)] border-[var(--cp-green)] text-white' : isCurrent ? 'bg-white border-[var(--cp-red)] shadow-[0_0_15px_rgba(226,135,67,0.3)]' : 'bg-white border-[var(--cp-dough)]'}`}>
+                                {isPast ? <CheckIcon size={14} strokeWidth={4} /> : <step.icon size={14} strokeWidth={isCurrent ? 3 : 2} className={isCurrent ? 'text-[var(--cp-red)]' : 'text-zinc-300'} />}
+                              </div>
+                              <span className={`text-[12px] font-black uppercase tracking-widest transition-colors duration-500 ${isPast ? 'opacity-40' : isCurrent ? 'text-[var(--cp-ink)]' : 'opacity-20'}`}>
+                                {step.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-[var(--cp-dough)] rounded-2xl p-6 border-2 border-[var(--cp-ink)] shadow-[4px_4px_0_0_var(--cp-ink)]">
+                  <h4 className="text-[14px] font-black uppercase tracking-widest mb-4 opacity-40">Resumo do Pedido</h4>
+                  <div className="space-y-2">
+                    {activeOrder.itens?.map((item: any, i: number) => (
+                      <div key={i} className="flex justify-between items-baseline text-[13px] font-bold">
+                        <span>{item.quantidade}x {item.nome}</span>
+                        <span className="opacity-40">R$ {formatPrice(item.total)}</span>
+                      </div>
+                    ))}
+                    <div className="pt-3 mt-3 border-t-2 border-dashed border-[var(--cp-ink)]/10 flex justify-between items-baseline">
+                      <span className="text-[14px] font-black">Total</span>
+                      <span className="text-[18px] font-black text-[var(--cp-red)]">R$ {formatPrice(activeOrder.total)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Visualização de Perfil (Placeholder) */
+          <div className="px-6 py-20 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="w-20 h-20 bg-[var(--cp-dough)] rounded-full flex items-center justify-center mb-6 border-4 border-[var(--cp-ink)] mx-auto">
+              <User size={32} />
+            </div>
+            <h3 className="text-[20px] font-black uppercase tracking-widest mb-2">Sua Conta</h3>
+            <p className="text-[14px] font-medium max-w-[240px] mx-auto opacity-40">Em breve você poderá gerenciar seu perfil e histórico de pedidos aqui.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Bar de Navegação */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-[var(--cp-line)] z-[120] safe-bottom shadow-[0_-4px_30px_rgba(0,0,0,0.05)] no-print">
+        <div className="flex h-[52px] max-w-[500px] mx-auto">
+          {/* Cardápio */}
+          <button 
+            onClick={() => setActiveView('menu')}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all relative ${activeView === 'menu' ? 'text-[var(--cp-red)]' : 'text-[#A39284]'}`}
+          >
+            {activeView === 'menu' && (
+              <div className="absolute top-0 w-12 h-1.5 bg-[var(--cp-red)] rounded-b-lg animate-in slide-in-from-top-2 duration-300" />
+            )}
+            <div className="mt-1">
+              <BookOpen size={24} strokeWidth={activeView === 'menu' ? 2.5 : 2} />
+            </div>
+          </button>
+
+          {/* Pedidos */}
+          <button 
+            onClick={() => setActiveView('status')}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all relative ${activeView === 'status' ? 'text-[var(--cp-red)]' : 'text-[#A39284]'}`}
+          >
+            {activeView === 'status' && (
+              <div className="absolute top-0 w-12 h-1.5 bg-[var(--cp-red)] rounded-b-lg animate-in slide-in-from-top-2 duration-300" />
+            )}
+            <div className="mt-1 relative">
+              <ShoppingBag size={24} strokeWidth={activeView === 'status' ? 2.5 : 2} />
+              {activeOrder && activeOrder.status !== 'concluido' && activeOrder.status !== 'cancelado' && activeView !== 'status' && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[var(--cp-red)] rounded-full border-2 border-white animate-pulse" />
+              )}
+            </div>
+          </button>
+
+          {/* Conta */}
+          <button 
+            onClick={() => setActiveView('profile')}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all relative ${activeView === 'profile' ? 'text-[var(--cp-red)]' : 'text-[#A39284]'}`}
+          >
+            {activeView === 'profile' && (
+              <div className="absolute top-0 w-12 h-1.5 bg-[var(--cp-red)] rounded-b-lg animate-in slide-in-from-top-2 duration-300" />
+            )}
+            <div className="mt-1">
+              <User size={24} strokeWidth={activeView === 'profile' ? 2.5 : 2} />
+            </div>
+          </button>
+
+          {/* Barra de Carrinho Estilo Pill Premium */}
+          {totalCartItems > 0 && (
+            <div className={`fixed bottom-[84px] left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-[400px] z-[130] transition-all duration-500 ease-out
+              ${isCartOpen ? 'opacity-0 translate-y-10 pointer-events-none' : 'opacity-100 translate-y-0 animate-in slide-in-from-bottom-10'}
+            `}>
+              <button 
+                onClick={() => setIsCartOpen(true)}
+                className="w-full h-[60px] bg-[var(--cp-ink)] text-white rounded-[20px] flex items-center justify-between px-6 shadow-[0_10px_40px_rgba(0,0,0,0.3),0_6px_0_0_var(--cp-red)] active:shadow-none active:translate-y-1 transition-all border-2 border-white/10"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <ShoppingBag size={22} className="text-[var(--cp-red)]" />
+                    <span className="absolute -top-2 -right-2 w-5 h-5 bg-white text-[var(--cp-ink)] text-[10px] font-black rounded-full flex items-center justify-center">
+                      {totalCartItems}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-start leading-tight">
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Carrinho</span>
+                    <span className="text-[13px] font-black uppercase tracking-wider">Ver sacola</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-end leading-tight">
+                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Total</span>
+                  <span className="text-[16px] font-black text-white">R$ {formatPrice(cartTotal)}</span>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       <style jsx global>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .safe-bottom { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+        .safe-bottom { padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
       `}</style>
     </main>
   );
