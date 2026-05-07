@@ -1068,6 +1068,20 @@ export default function ClientHome() {
 
     // Salvar pedido no Supabase
     try {
+      // Cálculo de Tempo Estimado
+      let tempoEstimado = storeConfig?.tempo_estimado_padrao || 45;
+      
+      // Se for entrega, tenta pegar o tempo da zona
+      if (userData.entregaTipo === 'entrega' && userData.deliveryFee > 0) {
+        const taxa = taxasEntrega.find(t => Number(t.valor) === userData.deliveryFee);
+        if (taxa && taxa.tempo_estimado) {
+          tempoEstimado = taxa.tempo_estimado;
+        }
+      }
+
+      const agora = new Date();
+      const previsaoEntrega = new Date(agora.getTime() + tempoEstimado * 60000).toISOString();
+
       const { data: newOrder, error } = await supabase.from('pedidos').insert({
         cliente_nome: userData.nome,
         cliente_telefone: userData.telefone,
@@ -1081,7 +1095,9 @@ export default function ClientHome() {
         metodo_pagamento: userData.pagamento,
         troco_para: userData.pagamento === 'dinheiro' && !userData.semTroco ? parseFloat(userData.troco.replace(',', '.')) : null,
         status: 'pendente',
-        itens: cartItems
+        itens: cartItems,
+        tempo_estimado: tempoEstimado,
+        previsao_entrega: previsaoEntrega
       }).select().single();
 
       if (error) {
@@ -2120,6 +2136,22 @@ export default function ClientHome() {
                     <h3 className="text-[24px] font-black leading-tight" style={{ color: activeOrder.status === 'cancelado' ? '#f43f5e' : 'var(--cp-ink)' }}>
                       {getStatusLabel(activeOrder.status)}
                     </h3>
+                    
+                    {/* Previsão de Entrega p/ Cliente */}
+                    {activeOrder.status !== 'concluido' && activeOrder.status !== 'cancelado' && activeOrder.previsao_entrega && (
+                      <div className="mt-3 flex items-center gap-2 p-3 rounded-2xl bg-[var(--cp-dough)] border-2 border-[var(--cp-ink)]">
+                        <Clock size={16} className={new Date() > new Date(activeOrder.previsao_entrega) ? 'text-rose-500' : 'text-[var(--cp-ink)]'} />
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-black uppercase tracking-wider opacity-40 leading-none mb-1">
+                            {new Date() > new Date(activeOrder.previsao_entrega) ? 'Ops! Estamos um pouco atrasados' : 'Previsão de Entrega'}
+                          </span>
+                          <span className={`text-[14px] font-black ${new Date() > new Date(activeOrder.previsao_entrega) ? 'text-rose-600' : 'text-[var(--cp-ink)]'}`}>
+                            {new Date(activeOrder.previsao_entrega).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {activeOrder.justificativa_cancelamento && (
                       <div className="mt-4 p-4 bg-rose-50 border-2 border-rose-200 rounded-xl text-rose-800 text-[13px] font-medium italic">
                         "{activeOrder.justificativa_cancelamento}"

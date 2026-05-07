@@ -55,7 +55,7 @@ const navSections: NavSection[] = [
       { label: 'Dashboard', icon: DashboardIcon, href: '/admin/dashboard' },
       { label: 'Pedidos', icon: OrderIcon, href: '/admin/pedidos', badge: 12 },
       { label: 'Cozinha', icon: KitchenIcon, href: '/admin/cozinha', badge: 7 },
-      { label: 'Entregas', icon: DeliveryIcon, href: '/admin/entregas' },
+      { label: 'Entrega', icon: DeliveryIcon, href: '/admin/entrega' },
     ],
   },
   {

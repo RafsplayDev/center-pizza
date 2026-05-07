@@ -26,6 +26,8 @@ type Pedido = {
   justificativa_cancelamento?: string | null;
   itens: any[];
   criado_em: string;
+  tempo_estimado?: number;
+  previsao_entrega?: string;
 };
 
 const formatPrice = (price: number) => {
@@ -376,16 +378,35 @@ export default function PedidosPage() {
                   <div className="border-b-2 border-dashed border-[#EBE3DB] w-full mb-4"></div>
 
                   {/* Rodapé do Card */}
-                  <div className="flex items-end justify-between mb-2">
-                    <span className="text-[12px] font-medium text-[#8B7E74]">
-                      {getRelativeTime(pedido.criado_em)}
-                    </span>
-                    
-                    <div className="flex items-baseline gap-1" style={{ color: 'var(--cp-red)' }}>
-                      <span className="text-[14px] font-black">R$</span>
-                      <span className="text-[20px] font-black leading-none" style={{ fontFamily: 'var(--font-display-alt)' }}>
-                        {formatPrice(pedido.total)}
+                  <div className="flex flex-col gap-2 mb-2">
+                    {/* Previsão de Entrega */}
+                    {pedido.status !== 'concluido' && pedido.status !== 'cancelado' && (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Clock size={14} className={new Date() > new Date(pedido.previsao_entrega || '') ? 'text-rose-500' : 'text-zinc-400'} />
+                          <span className={`text-[10px] font-black uppercase tracking-wider ${new Date() > new Date(pedido.previsao_entrega || '') ? 'text-rose-500 animate-pulse' : 'text-zinc-400'}`}>
+                            {new Date() > new Date(pedido.previsao_entrega || '') ? 'Atrasado' : 'Previsão'}
+                          </span>
+                        </div>
+                        <span className={`text-[12px] font-bold ${new Date() > new Date(pedido.previsao_entrega || '') ? 'text-rose-600' : 'text-zinc-600'}`}>
+                          {pedido.previsao_entrega 
+                            ? new Date(pedido.previsao_entrega).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                            : '--:--'}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex items-end justify-between">
+                      <span className="text-[12px] font-medium text-[#8B7E74]">
+                        {getRelativeTime(pedido.criado_em)}
                       </span>
+                      
+                      <div className="flex items-baseline gap-1" style={{ color: 'var(--cp-red)' }}>
+                        <span className="text-[14px] font-black">R$</span>
+                        <span className="text-[20px] font-black leading-none" style={{ fontFamily: 'var(--font-display-alt)' }}>
+                          {formatPrice(pedido.total)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
