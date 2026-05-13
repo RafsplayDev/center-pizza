@@ -272,7 +272,7 @@ export default function ClientHome() {
     cidade: '',
     uf: '',
     referencia: '',
-    pagamento: 'pix' as 'pix' | 'cartao' | 'dinheiro',
+    pagamento: 'pix' as string,
     troco: '',
     semTroco: false,
     entregaTipo: 'entrega' as 'entrega' | 'retirada',
@@ -349,10 +349,13 @@ export default function ClientHome() {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: `id=eq.${activeOrderId}` },
         (payload) => {
+          console.log('Status do pedido atualizado:', payload.new.status);
           setActiveOrder(payload.new);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`Realtime subscription status for order ${activeOrderId}:`, status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -461,6 +464,14 @@ export default function ClientHome() {
       if (config) {
         setIsStoreOpen(config.aberta);
         setStoreConfig(config);
+        
+        // Ajusta o tipo de entrega inicial baseado no que está ativo
+        setUserData(prev => {
+          if (config.entrega_ativa && config.retirada_ativa) return prev;
+          if (config.entrega_ativa) return { ...prev, entregaTipo: 'entrega' };
+          if (config.retirada_ativa) return { ...prev, entregaTipo: 'retirada' };
+          return prev;
+        });
       }
       if (taxas) setTaxasEntrega(taxas);
       if (b) setBairrosEntrega(b);
@@ -1126,7 +1137,15 @@ export default function ClientHome() {
     }
     message += `*TOTAL: R$ ${formatPrice(cartTotal)}*\n\n`;
     
-    message += `*FORMA DE PAGAMENTO:* ${userData.pagamento.toUpperCase()}\n`;
+    const paymentLabels: Record<string, string> = {
+      pix: 'PIX',
+      dinheiro: 'DINHEIRO',
+      credito: 'CARTÃO DE CRÉDITO',
+      debito: 'CARTÃO DE DÉBITO',
+      vr: 'VALE REFEIÇÃO (VR)'
+    };
+    
+    message += `*FORMA DE PAGAMENTO:* ${paymentLabels[userData.pagamento] || userData.pagamento.toUpperCase()}\n`;
     if (userData.pagamento === 'dinheiro') {
       message += userData.semTroco ? `*TROCO:* NÃO PRECISA\n` : `*TROCO PARA:* R$ ${userData.troco}\n`;
     }
@@ -1834,14 +1853,14 @@ export default function ClientHome() {
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                 <section>
                   <h3 className="text-[16px] font-black uppercase tracking-widest text-[var(--cp-ink)] mb-4 pb-2 border-b-2 border-[var(--cp-ink)]">Como deseja receber?</h3>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-wrap gap-3 justify-center">
                     {[
-                      { id: 'entrega', label: 'Entrega' },
-                      { id: 'retirada', label: 'Retirada' }
-                    ].map((type) => (
+                      { id: 'entrega', label: 'Entrega', active: storeConfig?.entrega_ativa },
+                      { id: 'retirada', label: 'Retirada', active: storeConfig?.retirada_ativa }
+                    ].filter(t => t.active !== false).map((type, _, arr) => (
                       <label 
                         key={type.id}
-                        className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${userData.entregaTipo === type.id ? 'bg-[var(--cp-ink)] border-[var(--cp-ink)] text-white shadow-[4px_4px_0_0_var(--cp-red)]' : 'bg-white border-[var(--cp-line)] hover:border-[var(--cp-ink)] text-[var(--cp-ink)]'}`}
+                        className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${arr.length === 1 ? 'w-full max-w-[200px]' : 'flex-1'} ${userData.entregaTipo === type.id ? 'bg-[var(--cp-ink)] border-[var(--cp-ink)] text-white shadow-[4px_4px_0_0_var(--cp-red)]' : 'bg-white border-[var(--cp-line)] hover:border-[var(--cp-ink)] text-[var(--cp-ink)]'}`}
                       >
                         <span className="text-[12px] font-black uppercase tracking-wider">{type.label}</span>
                         <input type="radio" name="entregaTipo" className="hidden" checked={userData.entregaTipo === type.id} onChange={() => setUserData({...userData, entregaTipo: type.id as any})} />
@@ -2024,9 +2043,11 @@ export default function ClientHome() {
                   <div className="grid grid-cols-1 gap-3">
                     {[
                       { id: 'pix', label: 'Pix' },
-                      { id: 'cartao', label: 'Cartão (na entrega)' },
-                      { id: 'dinheiro', label: 'Dinheiro' }
-                    ].map((method) => (
+                      { id: 'credito', label: 'Cartão de Crédito' },
+                      { id: 'debito', label: 'Cartão de Débito' },
+                      { id: 'dinheiro', label: 'Dinheiro' },
+                      { id: 'vr', label: 'Vale Refeição (VR)' },
+                    ].filter(m => !storeConfig?.formas_pagamento_entrega || storeConfig.formas_pagamento_entrega.includes(m.id)).map((method) => (
                       <label 
                         key={method.id}
                         className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${userData.pagamento === method.id ? 'bg-[var(--cp-ink)] border-[var(--cp-ink)] text-white shadow-[4px_4px_0_0_var(--cp-red)]' : 'bg-white border-[var(--cp-line)] hover:border-[var(--cp-ink)] text-[var(--cp-ink)]'}`}

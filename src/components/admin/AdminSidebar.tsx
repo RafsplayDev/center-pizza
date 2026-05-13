@@ -9,7 +9,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
+import { supabase } from '@/lib/supabase';
 import {
   DashboardIcon,
   OrderIcon,
@@ -24,11 +24,6 @@ import {
   LogoutIcon,
   ChevronRightIcon,
 } from './icons';
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // -------------------------------------------------------------
 // Tipagem
@@ -151,13 +146,46 @@ export default function AdminSidebar() {
 
     fetchData();
     
-    // Subscribe para atualizações em tempo real de pedidos
+    // 4. Subscribe para atualizações em tempo real de pedidos (CONEXÃO MESTRE)
+    console.log('Iniciando Master Realtime Listener...');
     const pedidosChannel = supabase
-      .channel('sidebar_pedidos')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+      .channel('master-orders-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, (payload) => {
+        console.log('🔔 EVENTO REALTIME RECEBIDO:', payload.eventType, payload);
+        
+        // Disparar evento para outros componentes (Página de Pedidos, TopBar)
+        try {
+          window.dispatchEvent(new CustomEvent('pedidos-changed', { detail: payload }));
+        } catch (e) {
+          console.error('Erro ao disparar evento global:', e);
+        }
+        
+        // Atualizar estatísticas da própria sidebar
         fetchData();
+
+        // Alerta sonoro para novos pedidos
+        if (payload.eventType === 'INSERT') {
+          console.log('🎉 NOVO PEDIDO! Tentando tocar alerta...');
+          try {
+            const bell = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+            bell.volume = 0.6;
+            bell.play().catch(err => {
+              console.warn('Autoplay bloqueado. Clique na página para habilitar o som.', err);
+            });
+            
+            setNotification({ 
+              message: `Novo pedido #${payload.new?.numero_pedido || ''} recebido!`, 
+              type: 'success' 
+            });
+          } catch (e) {
+            console.error('Erro ao processar alerta de novo pedido:', e);
+          }
+        }
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log('📡 Status da Conexão Realtime:', status);
+        if (err) console.error('❌ Erro na conexão Realtime:', err);
+      });
 
     // Ouvir evento de mudança global (vinda da TopBar, por exemplo)
     window.addEventListener('store-status-changed', fetchData);
@@ -226,6 +254,19 @@ export default function AdminSidebar() {
         transition: 'width 220ms cubic-bezier(0.22,0.61,0.36,1), min-width 220ms cubic-bezier(0.22,0.61,0.36,1)',
       }}
     >
+      {/* Botão de Teste (Apenas para Debug) */}
+      <button 
+        onClick={() => {
+          const bell = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+          bell.play();
+          window.dispatchEvent(new CustomEvent('pedidos-changed', { detail: { eventType: 'TEST' } }));
+          console.log('Teste de som e evento disparado');
+        }}
+        className="fixed bottom-0 left-0 opacity-0 pointer-events-none"
+        aria-hidden="true"
+      >
+        Test
+      </button>
       {/* Logo + toggle */}
       <div
         className="flex items-center border-b"

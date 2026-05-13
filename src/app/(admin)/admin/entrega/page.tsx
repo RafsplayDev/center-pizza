@@ -279,7 +279,13 @@ export default function EntregaPage() {
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Status</span>
-                <div onClick={() => setConfig(prev => prev ? {...prev, entrega_ativa: !prev.entrega_ativa} : null)}
+                <div onClick={() => {
+                  if (config?.entrega_ativa && !config?.retirada_ativa) {
+                    alert('Você precisa ter pelo menos um método de recebimento ativo (Entrega ou Retirada).');
+                    return;
+                  }
+                  setConfig(prev => prev ? {...prev, entrega_ativa: !prev.entrega_ativa} : null);
+                }}
                   className="w-[48px] h-[28px] rounded-lg relative cursor-pointer transition-all duration-200 border-2 flex items-center px-1 shadow-[0_2px_0_0_var(--cp-line-strong)]"
                   style={{ backgroundColor: config?.entrega_ativa ? 'var(--cp-red)' : 'var(--cp-flour)', borderColor: 'var(--cp-ink)' }}>
                   <div className="w-[16px] h-[16px] rounded-md transition-all duration-200"
@@ -300,7 +306,13 @@ export default function EntregaPage() {
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter">Status</span>
-                <div onClick={() => setConfig(prev => prev ? {...prev, retirada_ativa: !prev.retirada_ativa} : null)}
+                <div onClick={() => {
+                  if (config?.retirada_ativa && !config?.entrega_ativa) {
+                    alert('Você precisa ter pelo menos um método de recebimento ativo (Entrega ou Retirada).');
+                    return;
+                  }
+                  setConfig(prev => prev ? {...prev, retirada_ativa: !prev.retirada_ativa} : null);
+                }}
                   className="w-[48px] h-[28px] rounded-lg relative cursor-pointer transition-all duration-200 border-2 flex items-center px-1 shadow-[0_2px_0_0_var(--cp-line-strong)]"
                   style={{ backgroundColor: config?.retirada_ativa ? 'var(--cp-red)' : 'var(--cp-flour)', borderColor: 'var(--cp-ink)' }}>
                   <div className="w-[16px] h-[16px] rounded-md transition-all duration-200"
@@ -512,10 +524,10 @@ export default function EntregaPage() {
 
                     {/* Sub-seção: Bloqueados */}
                     <div className="p-4 bg-zinc-100 flex items-center justify-between border-b-2 border-[var(--cp-line)] border-t-2">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Áreas Bloqueadas (Ex: CDHU)</span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Áreas Bloqueadas</span>
                       <button onClick={(e) => { e.stopPropagation(); setEditBairro({ bloqueado: true }); setBairroSearch(''); setBairroResults([]); setShowBairroModal(true); }}
                         className="px-3 py-1.5 bg-zinc-800 border-2 border-zinc-950 rounded-lg text-[9px] font-black uppercase tracking-widest text-white hover:bg-zinc-900 transition-all flex items-center gap-2 shadow-[0_2px_0_0_zinc-950] active:translate-y-[1px] active:shadow-none">
-                        <XIcon size={12} strokeWidth={3} className="text-white" /> Bloquear Área
+                        <PlusIcon size={12} strokeWidth={3} className="text-white" /> Bloquear Área
                       </button>
                     </div>
                     <div className="divide-y-2 divide-[var(--cp-line)] bg-zinc-50/50">

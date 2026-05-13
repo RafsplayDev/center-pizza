@@ -13,11 +13,6 @@ import { SearchIcon, BellIcon, PrinterIcon, PlusIcon, LogoutIcon } from './icons
 import { ShoppingBag, DollarSign, TrendingUp, BarChart3, AlertCircle, Package, Bike } from 'lucide-react';
 import Button from '@/components/ui/Button';
 
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 // Mapeamento de rotas para títulos/breadcrumbs
 const routeConfig: Record<string, { breadcrumb: string; title: string }> = {
   '/admin/dashboard': { breadcrumb: 'Painel', title: 'Dashboard' },
@@ -101,15 +96,12 @@ export default function AdminTopBar() {
     fetchStoreStatus();
     fetchOrderStats();
 
-    // Subscribe para atualizações em tempo real de pedidos
-    const pedidosChannel = supabase
-      .channel('topbar_pedidos')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
-        fetchOrderStats();
-      })
-      .subscribe();
+    // Ouvir atualizações globais de pedidos
+    const handleGlobalUpdate = () => {
+      fetchOrderStats();
+    };
 
-    // Ouvir evento de mudança de status para atualizar contadores instantaneamente
+    window.addEventListener('pedidos-changed', handleGlobalUpdate);
     window.addEventListener('product-status-changed', fetchCounts);
     window.addEventListener('store-status-changed', fetchStoreStatus);
 
@@ -121,7 +113,7 @@ export default function AdminTopBar() {
 
     return () => {
       clearInterval(interval);
-      supabase.removeChannel(pedidosChannel);
+      window.removeEventListener('pedidos-changed', handleGlobalUpdate);
       window.removeEventListener('product-status-changed', fetchCounts);
       window.removeEventListener('store-status-changed', fetchStoreStatus);
     };

@@ -1,14 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
 import { User, Bike, CreditCard, Banknote, ChevronDown, Package, Clock, CheckCircle2, MapPin, Navigation, X, Printer, MessageCircle, Map, Ban } from 'lucide-react';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+import { supabase } from '@/lib/supabase';
 
 type Pedido = {
   id: string;
@@ -88,28 +84,16 @@ export default function PedidosPage() {
   useEffect(() => {
     fetchPedidos();
 
-    // Subscribe para atualizações em tempo real
-    const channel = supabase
-      .channel('pedidos_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'pedidos' },
-        (payload) => {
-          console.log('Realtime Update:', payload);
-          
-          // Som de alerta para novos pedidos
-          if (payload.eventType === 'INSERT') {
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
-            audio.play().catch(e => console.log('Audio play failed:', e));
-          }
-          
-          fetchPedidos();
-        }
-      )
-      .subscribe();
+    // Ouvir atualizações globais vindas da sidebar
+    const handleGlobalUpdate = (e: any) => {
+      console.log('Refresh via global event:', e.detail?.eventType);
+      fetchPedidos();
+    };
+
+    window.addEventListener('pedidos-changed', handleGlobalUpdate);
 
     return () => {
-      supabase.removeChannel(channel);
+      window.removeEventListener('pedidos-changed', handleGlobalUpdate);
     };
   }, []);
 
@@ -227,30 +211,49 @@ export default function PedidosPage() {
           mask: var(--mask);
           padding-bottom: 14px;
         }
+
+        /* Ocultar recibo térmico na tela */
+        .thermal-receipt {
+          display: none;
+        }
+
         @media print {
+          /* Configurações da Página */
+          @page {
+            margin: 0;
+            size: 80mm auto;
+          }
+          
+          /* Ocultar tudo */
           body * {
             visibility: hidden;
+            background: none !important;
+            box-shadow: none !important;
           }
-          .printable-modal, .printable-modal * {
+
+          /* Mostrar apenas o recibo térmico */
+          .thermal-receipt, .thermal-receipt * {
             visibility: visible;
+            display: block !important;
           }
-          .printable-modal {
+
+          .thermal-receipt {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: 100% !important;
-            max-width: 80mm !important; /* Tamanho comum de cupom */
-            margin: 0 !important;
-            padding: 10px !important;
-            box-shadow: none !important;
-            background: white !important;
-            border: none !important;
-            -webkit-mask: none !important;
-            mask: none !important;
-            overflow: visible !important;
-            max-height: none !important;
+            width: 72mm !important; /* Margem interna para papel de 80mm */
+            padding: 4mm !important;
+            font-family: 'Courier New', Courier, monospace !important;
+            color: black !important;
+            line-height: 1.2 !important;
           }
-          .no-print, .no-print * {
+
+          /* Ajustes de fonte para a térmica */
+          .thermal-receipt b, .thermal-receipt strong {
+            font-weight: 900 !important;
+          }
+
+          .no-print {
             display: none !important;
           }
         }
@@ -637,6 +640,91 @@ export default function PedidosPage() {
               </div>
 
             </div>
+          </div>
+        </div>
+      )}
+      {/* Recibo Térmico (Apenas p/ Impressão) */}
+      {selectedPedido && (
+        <div className="thermal-receipt">
+          <div style={{ textAlign: 'center', marginBottom: '10px', borderBottom: '2px dashed black', paddingBottom: '10px' }}>
+            <div style={{ fontSize: '22px', fontWeight: 'bold' }}>CENTER PIZZA</div>
+            <div style={{ fontSize: '12px' }}>Digital Order</div>
+          </div>
+
+          <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+            <div style={{ fontSize: '14px' }}>PEDIDO</div>
+            <div style={{ fontSize: '48px', fontWeight: '900', lineHeight: '1' }}>#{selectedPedido.numero_pedido}</div>
+            <div style={{ fontSize: '12px', marginTop: '5px' }}>
+              {new Date(selectedPedido.criado_em).toLocaleDateString('pt-BR')} - {new Date(selectedPedido.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '10px', borderBottom: '1px solid black', paddingBottom: '5px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 'bold' }}>CLIENTE: {selectedPedido.cliente_nome.toUpperCase()}</div>
+            <div style={{ fontSize: '14px' }}>FONE: {selectedPedido.cliente_telefone}</div>
+          </div>
+
+          <div style={{ marginBottom: '15px', borderBottom: '2px dashed black', paddingBottom: '10px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 'bold' }}>TIPO: {selectedPedido.tipo_entrega.toUpperCase()}</div>
+            {selectedPedido.tipo_entrega === 'entrega' ? (
+              <div style={{ fontSize: '14px', marginTop: '5px' }}>
+                <b>ENDEREÇO:</b> {selectedPedido.endereco_entrega?.toUpperCase()}
+              </div>
+            ) : (
+              <div style={{ fontSize: '14px', marginTop: '5px', fontWeight: 'bold' }}>RETIRADA NO BALCÃO</div>
+            )}
+          </div>
+
+          <div style={{ marginBottom: '15px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 'bold', borderBottom: '1px solid black', marginBottom: '5px' }}>ITENS DO PEDIDO</div>
+            {selectedPedido.itens?.map((item: any, idx: number) => (
+              <div key={idx} style={{ marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '15px', fontWeight: 'bold' }}>
+                  <span>{item.quantidade}x {item.nome.toUpperCase()}</span>
+                  <span>R$ {formatPrice(item.total)}</span>
+                </div>
+                
+                {item.opcoes?.map((opt: any, oIdx: number) => (
+                  <div key={oIdx} style={{ fontSize: '12px', marginLeft: '10px', fontStyle: 'italic' }}>
+                    - {opt.itens?.map((i: any) => i.nome.toUpperCase()).join(' / ')}
+                  </div>
+                ))}
+                
+                {item.observacao && (
+                  <div style={{ fontSize: '12px', marginLeft: '10px', fontWeight: 'bold', marginTop: '2px' }}>
+                    OBS: {item.observacao.toUpperCase()}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ borderTop: '2px dashed black', paddingTop: '10px', marginBottom: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+              <span>SUBTOTAL</span>
+              <span>R$ {formatPrice(selectedPedido.subtotal)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+              <span>TAXA ENTREGA</span>
+              <span>R$ {formatPrice(selectedPedido.taxa_entrega)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '20px', fontWeight: 'bold', marginTop: '5px' }}>
+              <span>TOTAL</span>
+              <span>R$ {formatPrice(selectedPedido.total)}</span>
+            </div>
+          </div>
+
+          <div style={{ border: '1px solid black', padding: '8px', textAlign: 'center' }}>
+            <div style={{ fontSize: '14px', fontWeight: 'bold' }}>PAGAMENTO: {selectedPedido.metodo_pagamento.toUpperCase()}</div>
+            {selectedPedido.metodo_pagamento === 'dinheiro' && selectedPedido.troco_para && (
+              <div style={{ fontSize: '14px' }}>TROCO PARA R$ {formatPrice(selectedPedido.troco_para)}</div>
+            )}
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '10px' }}>
+            --------------------------------<br />
+            OBRIGADO PELA PREFERÊNCIA!<br />
+            CENTER PIZZA DIGITAL
           </div>
         </div>
       )}
