@@ -30,6 +30,7 @@ const routeConfig: Record<string, { breadcrumb: string; title: string }> = {
   '/admin/equipe': { breadcrumb: 'Gestão', title: 'Equipe' },
   '/admin/relatorios': { breadcrumb: 'Gestão', title: 'Relatórios' },
   '/admin/configuracoes': { breadcrumb: 'Gestão', title: 'Configurações' },
+  '/admin/entrega': { breadcrumb: 'Entrega', title: 'Regras, áreas e endereço' },
 };
 
 export default function AdminTopBar() {

@@ -279,6 +279,7 @@ export default function ClientHome() {
     deliveryFee: 0
   });
   const [taxasEntrega, setTaxasEntrega] = useState<any[]>([]);
+  const [bairrosEntrega, setBairrosEntrega] = useState<any[]>([]);
   const [storeConfig, setStoreConfig] = useState<any>(null);
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
@@ -449,6 +450,12 @@ export default function ClientHome() {
         .select('*')
         .order('distancia_min', { ascending: true });
 
+      const { data: b } = await supabase
+        .from('bairros_entrega')
+        .select('*')
+        .eq('ativo', true)
+        .order('nome', { ascending: true });
+
       setCategorias(formattedCats);
       if (formattedCats.length > 0) setActiveCategory(formattedCats[0].id);
       if (config) {
@@ -456,6 +463,7 @@ export default function ClientHome() {
         setStoreConfig(config);
       }
       if (taxas) setTaxasEntrega(taxas);
+      if (b) setBairrosEntrega(b);
     } catch (err) {
       console.error('Error fetching menu:', err);
     } finally {
@@ -635,13 +643,17 @@ export default function ClientHome() {
       
       if (existingIndex > -1) {
         const newItems = [...prev];
-        const newQty = Math.max(0, newItems[existingIndex].quantidade + delta);
+        const item = newItems[existingIndex];
+        const newQty = Math.max(0, item.quantidade + delta);
         
         if (newQty === 0) {
           newItems.splice(existingIndex, 1);
         } else {
-          newItems[existingIndex].quantidade = newQty;
-          newItems[existingIndex].total = newQty * newItems[existingIndex].preco_unitario;
+          newItems[existingIndex] = {
+            ...item,
+            quantidade: newQty,
+            total: newQty * item.preco_unitario
+          };
         }
         return newItems;
       } else if (delta > 0) {
@@ -733,12 +745,71 @@ export default function ClientHome() {
     return R * c;
   };
 
+  const normalizeStr = (str: string) => 
+    str?.toLowerCase()
+       .normalize('NFD')
+       .replace(/[\u0300-\u036f]/g, '')
+       .trim();
+
   const handleCalculateDelivery = async () => {
     if (!userData.endereco || !userData.numero || !userData.bairro) {
       return;
     }
+
+    const currentModo = storeConfig?.modo_entrega || 'raio';
+
+    // --- LÓGICA DE BAIRRO (USADA NO MODO BAIRRO E HÍBRIDO) ---
+    const checkBairroMatch = () => {
+      const userBairroNorm = normalizeStr(userData.bairro);
+      const fullAddressNorm = normalizeStr(`${userData.endereco} ${userData.bairro} ${userData.referencia}`);
+      
+      // 1. Tenta match exato pelo campo bairro
+      let match = bairrosEntrega.find(b => normalizeStr(b.nome) === userBairroNorm);
+      
+      // 2. Se não achou (ou se quer pegar áreas específicas como 'CDHU' que podem estar no logradouro),
+      // procura se algum nome de bairro BLOQUEADO está contido no endereço completo.
+      if (!match) {
+        match = bairrosEntrega.find(b => 
+          b.bloqueado && 
+          b.nome.length > 2 && 
+          fullAddressNorm.includes(normalizeStr(b.nome))
+        );
+      }
+      
+      if (match) {
+        if (match.bloqueado) {
+          setUserData(prev => ({ ...prev, deliveryFee: 0 }));
+          setDeliveryError(`Infelizmente não realizamos entregas na área: ${match.nome}`);
+          return { found: true, blocked: true };
+        }
+        setUserData(prev => ({ ...prev, deliveryFee: Number(match.valor) }));
+        setDeliveryError(null);
+        return { found: true, blocked: false, value: Number(match.valor) };
+      }
+      return { found: false };
+    };
+
+    if (currentModo === 'bairro') {
+      setIsCalculatingDistance(true);
+      setDeliveryError(null);
+      try {
+        checkBairroMatch();
+      } finally {
+        setIsCalculatingDistance(false);
+      }
+      return;
+    }
+
+    if (currentModo === 'hibrido') {
+       const bairroResult = checkBairroMatch();
+       if (bairroResult.found) {
+         return; // Já resolveu (taxa aplicada ou bloqueado)
+       }
+       // Se não achou o bairro, continua para o cálculo de raio
+    }
+
+    // --- MODO RAIO (GPS) ---
     if (!storeConfig?.latitude || !storeConfig?.longitude) {
-      // Se ainda estamos carregando, não mostramos erro ainda para evitar falso positivo
       if (loading) return;
       setDeliveryError('Loja sem coordenadas configuradas. Avise o estabelecimento.');
       return;
@@ -976,6 +1047,12 @@ export default function ClientHome() {
   const cartSubtotal = cartItems.reduce((acc, item) => acc + item.total, 0);
   const cartTotal = cartSubtotal + userData.deliveryFee;
 
+  const isMinimumOrderMet = useMemo(() => {
+    if (userData.entregaTipo !== 'entrega') return true;
+    const min = Number(storeConfig?.pedido_minimo || 0);
+    return cartSubtotal >= min;
+  }, [userData.entregaTipo, storeConfig, cartSubtotal]);
+
   const isTrocoValid = useMemo(() => {
     if (userData.pagamento !== 'dinheiro') return true;
     if (userData.semTroco) return true;
@@ -995,13 +1072,17 @@ export default function ClientHome() {
       if (index === -1) return prev;
       
       const newItems = [...prev];
-      const newQty = Math.max(0, newItems[index].quantidade + delta);
+      const item = newItems[index];
+      const newQty = Math.max(0, item.quantidade + delta);
       
       if (newQty === 0) {
         newItems.splice(index, 1);
       } else {
-        newItems[index].quantidade = newQty;
-        newItems[index].total = newQty * newItems[index].preco_unitario;
+        newItems[index] = {
+          ...item,
+          quantidade: newQty,
+          total: newQty * item.preco_unitario
+        };
       }
       return newItems;
     });
@@ -1071,11 +1152,32 @@ export default function ClientHome() {
       // Cálculo de Tempo Estimado
       let tempoEstimado = storeConfig?.tempo_estimado_padrao || 45;
       
-      // Se for entrega, tenta pegar o tempo da zona
+      // Se for entrega, tenta pegar o tempo da zona ou bairro
       if (userData.entregaTipo === 'entrega' && userData.deliveryFee > 0) {
-        const taxa = taxasEntrega.find(t => Number(t.valor) === userData.deliveryFee);
-        if (taxa && taxa.tempo_estimado) {
-          tempoEstimado = taxa.tempo_estimado;
+        const currentModo = storeConfig?.modo_entrega || 'raio';
+        let foundBairroTime = false;
+
+        if (currentModo === 'bairro' || currentModo === 'hibrido') {
+          const userBairroNorm = normalizeStr(userData.bairro);
+          const match = bairrosEntrega.find(b => normalizeStr(b.nome) === userBairroNorm);
+          if (match && match.tempo_estimado) {
+            tempoEstimado = match.tempo_estimado;
+            foundBairroTime = true;
+          }
+        }
+
+        if (!foundBairroTime && (currentModo === 'raio' || currentModo === 'hibrido')) {
+          // Busca por distância (raio) se tivermos as coordenadas
+          let dist = 0;
+          const userLat = cepCoords?.lat;
+          const userLon = cepCoords?.lon;
+          if (userLat && userLon && storeConfig?.latitude && storeConfig?.longitude) {
+            dist = getDistance(storeConfig.latitude, storeConfig.longitude, userLat, userLon);
+            const taxa = taxasEntrega.find(t => dist >= t.distancia_min && dist <= t.distancia_max);
+            if (taxa && taxa.tempo_estimado) {
+              tempoEstimado = taxa.tempo_estimado;
+            }
+          }
         }
       }
 
@@ -1262,7 +1364,7 @@ export default function ClientHome() {
                           sizes="96px"
                         />
                       ) : (
-                        <div className="w-full h-full grid place-items-center text-2xl opacity-10">🍕</div>
+                        <div className="w-full h-full grid place-items-center text-[10px] font-black uppercase opacity-20 tracking-tighter">Sem foto</div>
                       )}
                     </div>
 
@@ -1381,7 +1483,7 @@ export default function ClientHome() {
                   {selectedProduct.imagem_url ? (
                     <Image src={selectedProduct.imagem_url} alt={selectedProduct.nome} fill className="object-cover" priority sizes="100vw" />
                   ) : (
-                    <div className="w-full h-full bg-[var(--cp-dough)] grid place-items-center text-[120px]">🍕</div>
+                    <div className="w-full h-full bg-[var(--cp-dough)] grid place-items-center text-[14px] font-black uppercase opacity-20 tracking-widest">Produto sem imagem</div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-transparent" />
                 </div>
@@ -1629,6 +1731,29 @@ export default function ClientHome() {
 
           {/* Body Content */}
           <div className="flex-1 overflow-y-auto no-scrollbar p-6">
+            {userData.entregaTipo === 'entrega' && Number(storeConfig?.pedido_minimo) > 0 && (
+              <div className="mb-8 border-b-2 border-dashed border-[var(--cp-line)] pb-6">
+                <div className="flex justify-between items-baseline mb-2">
+                  <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--cp-ink)] opacity-30">Pedido Mínimo</span>
+                  <span className="text-[11px] font-black text-[var(--cp-ink)] opacity-30">R$ {formatPrice(Number(storeConfig.pedido_minimo))}</span>
+                </div>
+                
+                <div className="h-1.5 w-full bg-[var(--cp-dough)] rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-1000 ease-out ${isMinimumOrderMet ? 'bg-[var(--cp-ink)]' : 'bg-[var(--cp-red)]'}`}
+                    style={{ width: `${Math.min(100, (cartSubtotal / Number(storeConfig.pedido_minimo)) * 100)}%` }}
+                  />
+                </div>
+
+                {!isMinimumOrderMet && (
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-[10px] font-bold text-[var(--cp-red)] uppercase tracking-widest">Atingir mínimo para entrega</span>
+                    <span className="text-[10px] font-black text-[var(--cp-red)]">Faltam R$ {formatPrice(Number(storeConfig.pedido_minimo) - cartSubtotal)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {checkoutStep === 'cart' ? (
               <div className="space-y-6">
                 {cartItems.length === 0 ? (
@@ -1978,17 +2103,24 @@ export default function ClientHome() {
               {checkoutStep === 'cart' ? (
                 <button 
                   onClick={() => setCheckoutStep('form')}
-                  className="w-full h-[64px] bg-[var(--cp-ink)] text-white rounded-2xl flex items-center justify-center gap-3 shadow-[0_6px_0_0_var(--cp-red)] active:shadow-none active:translate-y-1 transition-all"
+                  disabled={!isMinimumOrderMet}
+                  className={`w-full h-[64px] rounded-2xl flex items-center justify-center gap-3 transition-all
+                    ${isMinimumOrderMet 
+                      ? 'bg-[var(--cp-ink)] text-white shadow-[0_6px_0_0_var(--cp-red)] active:shadow-none active:translate-y-1' 
+                      : 'bg-zinc-100 text-zinc-300 border-2 border-zinc-200 cursor-not-allowed shadow-none'
+                    }`}
                 >
-                  <span className="text-[14px] font-black uppercase tracking-[0.2em]">Finalizar Pedido</span>
-                  <ChevronRightIcon size={18} />
+                  <span className="text-[14px] font-black uppercase tracking-[0.2em]">
+                    {isMinimumOrderMet ? 'Finalizar Pedido' : 'Pedido Mínimo não atingido'}
+                  </span>
+                  {isMinimumOrderMet && <ChevronRightIcon size={18} />}
                 </button>
               ) : (
                 <button 
                   onClick={onConfirmOrder}
-                  disabled={!userData.nome || !userData.telefone || (userData.entregaTipo === 'entrega' && (!userData.endereco || !userData.numero || !userData.bairro || !!deliveryError || isCalculatingDistance)) || !isTrocoValid}
+                  disabled={!isMinimumOrderMet || !userData.nome || !userData.telefone || (userData.entregaTipo === 'entrega' && (!userData.endereco || !userData.numero || !userData.bairro || !!deliveryError || isCalculatingDistance)) || !isTrocoValid}
                   className={`w-full h-[64px] rounded-2xl flex items-center justify-center gap-3 transition-all relative
-                    ${(userData.nome && userData.telefone && (userData.entregaTipo === 'retirada' || (userData.endereco && userData.numero && userData.bairro && !deliveryError && !isCalculatingDistance)) && isTrocoValid)
+                    ${(isMinimumOrderMet && userData.nome && userData.telefone && (userData.entregaTipo === 'retirada' || (userData.endereco && userData.numero && userData.bairro && !deliveryError && !isCalculatingDistance)) && isTrocoValid)
                       ? 'bg-[var(--cp-green)] text-white shadow-[0_6px_0_0_var(--cp-ink)] active:shadow-none active:translate-y-1 cursor-pointer' 
                       : 'bg-zinc-100 text-zinc-300 border-2 border-zinc-200 cursor-not-allowed shadow-none'
                     }`}
@@ -2275,24 +2407,38 @@ export default function ClientHome() {
             `}>
               <button 
                 onClick={() => setIsCartOpen(true)}
-                className="w-full h-[60px] bg-[var(--cp-ink)] text-white rounded-[20px] flex items-center justify-between px-6 shadow-[0_10px_40px_rgba(0,0,0,0.3),0_6px_0_0_var(--cp-red)] active:shadow-none active:translate-y-1 transition-all border-2 border-white/10"
+                className="w-full h-[64px] bg-[var(--cp-ink)] text-white rounded-[20px] flex flex-col justify-center px-6 shadow-[0_10px_40px_rgba(0,0,0,0.3),0_6px_0_0_var(--cp-red)] active:shadow-none active:translate-y-1 transition-all border-2 border-white/10 relative overflow-hidden"
               >
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <ShoppingBag size={22} className="text-[var(--cp-red)]" />
-                    <span className="absolute -top-2 -right-2 w-5 h-5 bg-white text-[var(--cp-ink)] text-[10px] font-black rounded-full flex items-center justify-center">
-                      {totalCartItems}
-                    </span>
+                {/* Indicador de Pedido Mínimo no Pill */}
+                {userData.entregaTipo === 'entrega' && Number(storeConfig?.pedido_minimo) > 0 && !isMinimumOrderMet && (
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-white/10">
+                    <div 
+                      className="h-full bg-[var(--cp-red)] transition-all duration-1000" 
+                      style={{ width: `${Math.min(100, (cartSubtotal / Number(storeConfig.pedido_minimo)) * 100)}%` }}
+                    />
                   </div>
-                  <div className="flex flex-col items-start leading-tight">
-                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Carrinho</span>
-                    <span className="text-[13px] font-black uppercase tracking-wider">Ver sacola</span>
-                  </div>
-                </div>
+                )}
 
-                <div className="flex flex-col items-end leading-tight">
-                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Total</span>
-                  <span className="text-[16px] font-black text-white">R$ {formatPrice(cartTotal)}</span>
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <ShoppingBag size={22} className="text-[var(--cp-red)]" />
+                      <span className="absolute -top-2 -right-2 w-5 h-5 bg-white text-[var(--cp-ink)] text-[10px] font-black rounded-full flex items-center justify-center">
+                        {totalCartItems}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-start leading-tight">
+                      <span className="text-[10px] font-black uppercase tracking-widest opacity-40">
+                        {userData.entregaTipo === 'entrega' && !isMinimumOrderMet ? 'Faltam R$ ' + formatPrice(Number(storeConfig.pedido_minimo) - cartSubtotal) : 'Sacola'}
+                      </span>
+                      <span className="text-[13px] font-black uppercase tracking-wider">Ver itens</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end leading-tight">
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Total</span>
+                    <span className="text-[16px] font-black text-white">R$ {formatPrice(cartTotal)}</span>
+                  </div>
                 </div>
               </button>
             </div>
